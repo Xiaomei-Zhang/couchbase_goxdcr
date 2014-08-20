@@ -4,17 +4,17 @@ import (
 
 )
 
-//interface for Feed
+//interface for Pipeline
 
-type Feed interface {
-	//Name of the Feed
+type Pipeline interface {
+	//Name of the Pipeline
 	Topic() string
 
 	Sources () map[string]Nozzle
 	Targets () map[string]Nozzle
 	
 	//getter\setter of the runtime environment
-	RuntimeContext() FeedRuntimeContext
+	RuntimeContext() PipelineRuntimeContext
 
 	//start the data exchange
 	Start() error
