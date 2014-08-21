@@ -5,6 +5,6 @@ import (
 )
 
 type PipelineFactory interface {
-	NewPipeline (topic string) Pipeline
+	NewPipeline (topic string) (Pipeline, error)
 }
 

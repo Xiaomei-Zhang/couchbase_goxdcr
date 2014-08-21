@@ -13,11 +13,11 @@ type PipelineRuntimeContext interface {
 	Pipeline () Pipeline
 	
 	//return a service handle
-	Service (srv_name string) PipelineService
+	Service (svc_name string) PipelineService
 	
 	//register a new service
 	//if the feed is active, the service would be started rightway
-	RegisterService (svc PipelineService) error
+	RegisterService (svc_name string, svc PipelineService) error
 	
 	//attach the service from the feed and stop the service's goroutine
 	UnregisterService (srv_name string) error
