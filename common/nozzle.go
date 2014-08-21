@@ -4,19 +4,29 @@ import (
 
 )
 
-//It is used to model the openning that data streaming out of
-// the source system and the outlet where the data flowing into the target system.
+//Nozzle models the openning that data streaming out of the source system 
+//and the outlet where the data flowing into the target system.
+//
 //Nozzle can be opened or closed. An closed nozzle will not allow data flow through
+//
+//Each nozzle is a goroutine
 type Nozzle interface {
-	//open the Nozzle
-	//data can be passed to the downstream
+	Part
+
+	//Open opens the Nozzle
+	//
+	//Data can be passed to the downstream
 	Open() error
-	//close the Nozzle
-	//data can get to this nozzle
-	//but would not be passed to the downstream
-	Close() error	
-	//make the nozzle working now
-	Start (settings map[string]interface{} ) error
-	//stop the nozzle
-	Stop () error
+	
+	//Close closes the Nozzle
+	//
+	//Data can get to this nozzle, but would not be passed to the downstream
+	Close() error
+		
+	
+	//IsOpen returns true if the nozzle is open; returns false if the nozzle is closed
+	IsOpen () bool
+	
+	//IsStarted returns true if the nozzle is started; otherwise returns false
+	IsStarted () bool
 }

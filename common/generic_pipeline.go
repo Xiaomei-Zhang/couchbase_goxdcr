@@ -4,23 +4,28 @@ import (
 	"sync"
 )
 
-//assumption here is all the processing steps are self-connected, so
+//GenericPipeline is the generic implementation of a data processing pipeline
+//
+//The assumption here is all the processing steps are self-connected, so
 //once incoming nozzle is open, it will propel the data through all
 //processing steps.
 type GenericPipeline struct {
+	
+	//name of the pipeline
 	topic     string
+	
+	//incoming nozzles of the pipeline
 	sources   map[string]Nozzle
-	endpoints map[string]Nozzle
+	
+	//outgoing nozzles of the pipeline
+	targets map[string]Nozzle
 
+	//runtime context of the pipeline
 	context PipelineRuntimeContext
 
-	// communication channel with PipelineManager
-	reqch chan []interface{}
-	finch chan bool
-
-	// misc.
-	logPrefix string
-
+//	//communication channel with PipelineManager
+//	reqch chan []interface{}
+	
 	//if the pipeline is active running
 	isActive bool
 
@@ -28,14 +33,16 @@ type GenericPipeline struct {
 	stateLock sync.Mutex
 }
 
+//Get the runtime context of this pipeline
 func (genericPipeline *GenericPipeline) RuntimeContext() PipelineRuntimeContext {
 	return genericPipeline.context
 }
 
 
-//Start the pipeline
+//Start starts the pipeline
+//
 //settings - a map of parameter to start the pipeline. it can contain initialization paramters
-//			 for each processing steps, and PipelineRuntime of the pipeline.
+//			 for each processing steps and for runtime context of the pipeline.
 func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) error {
 	var err error
 	
@@ -50,14 +57,14 @@ func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) e
 	}
 
 	//open endpoints
-	for _, endpoint := range genericPipeline.endpoints {
-		err = endpoint.Open()
+	for _, target := range genericPipeline.targets {
+		err = target.Open()
 		if err != nil {
 			return err
 		}
 	}
 
-	//open streams
+	//open source
 	for _, source := range genericPipeline.sources {
 		err = source.Open()
 		if err != nil {
@@ -68,17 +75,29 @@ func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) e
 	//start the runtime
 	err = genericPipeline.context.Start(settings)
 	
+	//set its state to be active
 	genericPipeline.isActive = true
 	
 	return err
 }
 
+//Stop stops the pipeline
 func (genericPipeline *GenericPipeline) Stop() error {
 	var err error
 
 	genericPipeline.stateLock.Lock()
 	defer genericPipeline.stateLock.Unlock()
 
+	//close the sources
+	for _, source := range genericPipeline.sources {
+		err = source.Close()
+		if err != nil {
+			return err
+		}
+	}
+	
+	//stop the sources
+	//source nozzle would notify the stop intention to its downsteam steps
 	for _, source := range genericPipeline.sources {
 		err = source.Stop()
 		if err != nil {
@@ -86,6 +105,12 @@ func (genericPipeline *GenericPipeline) Stop() error {
 		}
 	}
 
+	//stop runtime context only if all the processing steps in the pipeline
+	//has been stopped.
+	finchan := make (chan bool)
+	go genericPipeline.waitToStop (finchan)
+	<-finchan
+	
 	err = genericPipeline.context.Stop()
 
 	genericPipeline.isActive = false
@@ -99,17 +124,34 @@ func (genericPipeline *GenericPipeline) Sources() map[string]Nozzle {
 }
 
 func (genericPipeline *GenericPipeline) Targets() map[string]Nozzle {
-	return genericPipeline.endpoints
+	return genericPipeline.targets
 }
 
-func NewGenericPipeline(t string, sources map[string]Nozzle, endpoints map[string]Nozzle, r PipelineRuntimeContext, reqChan chan []interface{}, finChan chan bool) *GenericPipeline {
+func (genericPipeline *GenericPipeline) Topic() string {
+	return genericPipeline.topic
+}
+
+func (genericPipeline *GenericPipeline) waitToStop (finchan chan bool) {
+	done := true
+	for {
+		for _, target := range genericPipeline.targets {
+			if target.IsStarted () {
+				done = false
+			}
+		}
+		if done {
+			break
+		}
+	}
+	finchan <- true
+}
+
+func NewGenericPipeline(t string, sources map[string]Nozzle, targets map[string]Nozzle, r PipelineRuntimeContext, reqChan chan []interface{}, finChan chan bool) *GenericPipeline {
 	pipeline := &GenericPipeline{topic: t,
 		sources:   sources,
-		endpoints: endpoints,
+		targets:   targets,
 		context:   r,
-		reqch:     reqChan,
-		finch:     finChan,
-		logPrefix: "pipeline"}
+		isActive:  false}
 
 	return pipeline
 }
