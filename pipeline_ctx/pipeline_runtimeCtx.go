@@ -1,6 +1,7 @@
 package pipeline_ctx
 
 import (
+	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	"sync"
 	"errors"
 )
@@ -20,10 +21,9 @@ type PipelineRuntimeCtx struct {
 
 func New (p common.Pipeline) (*PipelineRuntimeCtx, error) {
 	ctx := &PipelineRuntimeCtx {
-		runtime_srcs : make (map[string]common.PipelineService),
+		runtime_svcs : make (map[string]common.PipelineService),
 		pipeline : p,
-		isRunning : false
-	}
+		isRunning : false}
 	
 	return ctx, nil
 }
@@ -75,15 +75,15 @@ func (ctx *PipelineRuntimeCtx) Stop() error {
 	return err
 }
 
-func (ctx *PipelineRuntimeCtx) Pipeline() Pipeline {
+func (ctx *PipelineRuntimeCtx) Pipeline() common.Pipeline {
 	return ctx.pipeline
 }
 
-func (ctx *PipelineRuntimeCtx) Service(svc_name string) PipelineService {
+func (ctx *PipelineRuntimeCtx) Service(svc_name string) common.PipelineService {
 	return ctx.runtime_svcs[svc_name]
 }
 
-func (ctx *PipelineRuntimeCtx) RegisterService(svc_name string, svc PipelineService) error {
+func (ctx *PipelineRuntimeCtx) RegisterService(svc_name string, svc common.PipelineService) error {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
 
@@ -114,3 +114,7 @@ func (ctx *PipelineRuntimeCtx) UnregisterService (srv_name string) error {
 	
 	return err	
 }
+
+
+//enforcer for PipelineRuntimeCtx to implement PipelineRuntimeContext
+var _ common.PipelineRuntimeContext = (*PipelineRuntimeCtx)(nil)

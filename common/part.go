@@ -21,7 +21,7 @@ type PartEventListener interface {
 	//item - the data item
 	//derivedItems - the data items derived from the original item. This only used by DataProcessed event
 	//otherinformation - any other information the event might be able to supply to its listener
-	OnEvent (eventType PartEventType, item interface{}, part Part, derivedItems []interface{}, otherInfos map[string]interface{}) bool
+	OnEvent (eventType PartEventType, item interface{}, part Part, derivedItems []interface{}, otherInfos map[string]interface{})
 }
 
 type Part interface {
@@ -44,6 +44,12 @@ type Part interface {
 	//
 	//if the eventType is not supported by the part, an error would be thrown
 	RegisterPartEventListener (eventType PartEventType, listener PartEventListener) error
+	UnregisterPartEventListener (eventType PartEventType, listener PartEventListener)
 	
+	//Receive accepts data passed down from its upstream
+	Receive (data interface {}) error
+
+	//IsStarted returns true if the nozzle is started; otherwise returns false
+	IsStarted () bool
 	
 }

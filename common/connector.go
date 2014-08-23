@@ -12,6 +12,6 @@ type Connector interface {
 	DownStreams () map[string]Part
 	
 	//add a node to its existing set of downstream nodes
-	AddDownStreamNode (partId string, part Part) error
+	AddDownStream (partId string, part Part) error
 	
 }

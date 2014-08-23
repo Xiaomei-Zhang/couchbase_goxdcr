@@ -27,6 +27,4 @@ type Nozzle interface {
 	//IsOpen returns true if the nozzle is open; returns false if the nozzle is closed
 	IsOpen () bool
 	
-	//IsStarted returns true if the nozzle is started; otherwise returns false
-	IsStarted () bool
 }

@@ -15,9 +15,10 @@ type Pipeline interface {
 	
 	//getter\setter of the runtime environment
 	RuntimeContext() PipelineRuntimeContext
+	SetRuntimeContext (ctx PipelineRuntimeContext)
 
 	//start the data exchange
-	Start() error
+	Start(settings map[string]interface{}) error
 	//stop the data exchange
 	Stop() error
 }

@@ -20,8 +20,8 @@ func PipelineManager(factory common.PipelineFactory) {
 	})
 }
 
-func StartPipeline(topic string) error {
-	return pipeline_mgr.startPipeline(topic)
+func StartPipeline(topic string, settings map[string]interface{}) error {
+	return pipeline_mgr.startPipeline(topic, settings)
 }
 
 func StopPipeline(topic string) error {
@@ -44,7 +44,7 @@ func RuntimeCtx(topic string) common.PipelineRuntimeContext {
 	return pipeline_mgr.runtimeCtx(topic)
 }
 
-func (pipelineMgr *pipelineManager) startPipeline(topic string) error {
+func (pipelineMgr *pipelineManager) startPipeline(topic string, settings map[string]interface{}) error {
 	var err error
 	if f, ok := pipelineMgr.live_pipelines[topic]; !ok {
 		f, err = pipelineMgr.pipeline_factory.NewPipeline(topic)
@@ -52,7 +52,7 @@ func (pipelineMgr *pipelineManager) startPipeline(topic string) error {
 			return err
 		}
 		
-		err = f.Start()
+		err = f.Start(settings)
 		if err != nil {
 			return err
 		}
@@ -101,3 +101,4 @@ func (pipelineMgr *pipelineManager) topics() []string {
 func (pipelineMgr *pipelineManager) pipelines () map[string]common.Pipeline {
 	return pipelineMgr.live_pipelines
 }
+

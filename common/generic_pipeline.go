@@ -4,6 +4,7 @@ import (
 	"sync"
 )
 
+
 //GenericPipeline is the generic implementation of a data processing pipeline
 //
 //The assumption here is all the processing steps are self-connected, so
@@ -33,11 +34,15 @@ type GenericPipeline struct {
 	stateLock sync.Mutex
 }
 
+
 //Get the runtime context of this pipeline
 func (genericPipeline *GenericPipeline) RuntimeContext() PipelineRuntimeContext {
 	return genericPipeline.context
 }
 
+func (genericPipeline *GenericPipeline) SetRuntimeContext (ctx PipelineRuntimeContext) {
+	genericPipeline.context = ctx
+}
 
 //Start starts the pipeline
 //
@@ -146,12 +151,38 @@ func (genericPipeline *GenericPipeline) waitToStop (finchan chan bool) {
 	finchan <- true
 }
 
-func NewGenericPipeline(t string, sources map[string]Nozzle, targets map[string]Nozzle, r PipelineRuntimeContext, reqChan chan []interface{}, finChan chan bool) *GenericPipeline {
+func NewGenericPipeline(t string, sources map[string]Nozzle, targets map[string]Nozzle) *GenericPipeline {
 	pipeline := &GenericPipeline{topic: t,
 		sources:   sources,
 		targets:   targets,
-		context:   r,
 		isActive:  false}
 
 	return pipeline
 }
+
+func GetAllParts (p Pipeline) map[string]Part{
+	parts := make (map[string]Part)
+	sources := p.Sources ()
+	for key, source := range sources {
+		parts[key] = source
+		
+		addDownStreams (source, parts)
+	}
+	
+	return parts
+}
+
+
+func addDownStreams (p Part, partsMap map[string]Part) {
+	connector := p.Connector()
+	if connector != nil {
+		downstreams := connector.DownStreams ()
+		for key, part := range downstreams {
+			partsMap[key] = part
+			
+			addDownStreams (part, partsMap)
+		}
+	}
+}
+//enforcer for GenericPipeline to implement Pipeline
+var _ Pipeline = (*GenericPipeline)(nil)
