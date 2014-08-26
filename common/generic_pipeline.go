@@ -77,7 +77,7 @@ func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) e
 	//start the incoming nozzle which would start the downstream steps
 	//subsequently
 	for _, source := range genericPipeline.sources {
-		err = source.Start(settings)
+		err = genericPipeline.startPart(source,settings)
 		log.Println("Incoming nozzle " + source.Id() + " is started")
 	}
 	log.Println("All parts has been started")
@@ -152,7 +152,7 @@ func (genericPipeline *GenericPipeline) Stop() error {
 	//stop the sources
 	//source nozzle would notify the stop intention to its downsteam steps
 	for _, source := range genericPipeline.sources {
-		err = source.Stop()
+		err = genericPipeline.stopPart (source)
 		if err != nil {
 			return err
 		}
