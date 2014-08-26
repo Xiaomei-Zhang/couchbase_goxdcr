@@ -3,6 +3,7 @@ package connector
 import (
 	//	"errors"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
+	"log"
 )
 
 //SimpleConnector connects one source to one downstream
@@ -11,6 +12,7 @@ type SimpleConnector struct {
 }
 
 func (con *SimpleConnector) Forward(data interface{}) error {
+	log.Printf("Try to forward to downstream part %s", con.downStreamPart.Id())
 	return con.downStreamPart.Receive(data)
 }
 

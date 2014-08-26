@@ -1,7 +1,10 @@
 package part
 
 import (
+	"fmt"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
+	"log"
+	"errors"
 )
 
 type AbstractPart struct {
@@ -23,6 +26,8 @@ func NewAbstractPart(id string) AbstractPart {
 }
 
 func (p *AbstractPart) RaiseEvent(eventType common.PartEventType, data interface{}, part common.Part, derivedData []interface{}, otherInfos map[string]interface{}) {
+
+	log.Printf("Raise event %d for part %s\n", eventType, part.Id())
 	listenerList := p.event_listeners[eventType]
 
 	for _, listener := range listenerList {
@@ -55,17 +60,23 @@ func (p *AbstractPart) RegisterPartEventListener(eventType common.PartEventType,
 	return nil
 }
 
-func (p *AbstractPart) UnRegisterPartEventListener(eventType common.PartEventType, listener common.PartEventListener) {
+func (p *AbstractPart) UnRegisterPartEventListener(eventType common.PartEventType, listener common.PartEventListener) error {
 	listenerList := p.event_listeners[eventType]
-	var index int
-	
+	var index int = -1
+
 	for i, l := range listenerList {
 		if l == listener {
 			index = i
+			log.Println("listener's index is " + fmt.Sprint(i))
 			break
 		}
 	}
 
-    listenerList = append(listenerList[:index], listenerList[index+1:]...)
-    p.event_listeners[eventType] = listenerList
+	if index >= 0 {
+		listenerList = append(listenerList[:index], listenerList[index+1:]...)
+		p.event_listeners[eventType] = listenerList
+	}else {
+		return errors.New ("UnRegisterPartEventListener failed: can't find listener " + fmt.Sprint(listener))
+	}
+	return nil
 }

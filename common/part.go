@@ -30,21 +30,17 @@ type Part interface {
 	//each node is uniquely identified by Id within the plan
 	Id () string
 	
-	//Start makes goroutine for the nozzle working, it is also responsible for 
-	//starting its downstream steps
+	//Start makes goroutine for the part working
 	Start (settings map[string]interface{} ) error
 	
-	//Stop stops the nozzle,
-	//it is also reponsible for sending stop request to its downstream steps
-	//right before it is ready to shut down itself.
-	//Downstream would stop itself when it is done with the processing of the data it has
+	//Stop stops the part,
 	Stop () error
 
 	//RegisterPartEventListener registers a listener for Part event
 	//
 	//if the eventType is not supported by the part, an error would be thrown
 	RegisterPartEventListener (eventType PartEventType, listener PartEventListener) error
-	UnregisterPartEventListener (eventType PartEventType, listener PartEventListener)
+	UnRegisterPartEventListener (eventType PartEventType, listener PartEventListener) error
 	
 	//Receive accepts data passed down from its upstream
 	Receive (data interface {}) error

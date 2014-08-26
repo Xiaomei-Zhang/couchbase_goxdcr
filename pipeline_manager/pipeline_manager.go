@@ -2,6 +2,7 @@ package pipeline_manager
 
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
+	"log"
 	"sync"
 )
 
@@ -17,11 +18,15 @@ var pipeline_mgr pipelineManager
 func PipelineManager(factory common.PipelineFactory) {
 	pipeline_mgr.once.Do(func() {
 		pipeline_mgr.pipeline_factory = factory
+		pipeline_mgr.live_pipelines = make (map[string]common.Pipeline)
+		log.Println("Pipeline Manager is constucted")
 	})
 }
 
 func StartPipeline(topic string, settings map[string]interface{}) (common.Pipeline, error) {
-	return pipeline_mgr.startPipeline(topic, settings)
+	p, err := pipeline_mgr.startPipeline(topic, settings)
+	log.Println("RETURN !!!!")
+	return p, err
 }
 
 func StopPipeline(topic string) error {
@@ -46,33 +51,42 @@ func RuntimeCtx(topic string) common.PipelineRuntimeContext {
 
 func (pipelineMgr *pipelineManager) startPipeline(topic string, settings map[string]interface{}) (common.Pipeline, error) {
 	var err error
+	log.Println("starting the pipeline " + topic)
+
 	if f, ok := pipelineMgr.live_pipelines[topic]; !ok {
 		f, err = pipelineMgr.pipeline_factory.NewPipeline(topic)
 		if err != nil {
+			log.Println("Failed to construct a new pipeline: " + err.Error())
 			return f, err
 		}
 
+		log.Println("Pipeline is constructed, start it")
 		err = f.Start(settings)
 		if err != nil {
+			log.Println("Failed to start the pipeline")
 			return f, err
 		}
 		pipelineMgr.live_pipelines[topic] = f
+		log.Println("RETURN from startPipeline...")
+		return f, nil
 	} else {
 		//the pipeline is already running
-		//TODO: log
+		log.Println("The pipeline asked to be started is already running")
 		return f, err
 	}
 	return nil, err
 }
 
 func (pipelineMgr *pipelineManager) stopPipeline(topic string) error {
+	log.Println("Try to stop the pipeline " + topic)
 	var err error
 	if f, ok := pipelineMgr.live_pipelines[topic]; ok {
 		f.Stop()
+		log.Println("Pipeline is stopped")
 		delete(pipelineMgr.live_pipelines, topic)
 	} else {
 		//The named pipeline is not active
-		//TODO: log
+		log.Println("The pipeline asked to be stopped is not running.")
 	}
 	return err
 }
