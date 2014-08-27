@@ -1,10 +1,14 @@
-package common
+package pipeline
 
 import (
+	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	"fmt"
-	"log"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
 	"sync"
+	
 )
+
+var logger = log.NewLogger ("GenericPipeline", log.LogLevelInfo)
 
 //GenericPipeline is the generic implementation of a data processing pipeline
 //
@@ -17,13 +21,13 @@ type GenericPipeline struct {
 	topic string
 
 	//incoming nozzles of the pipeline
-	sources map[string]Nozzle
+	sources map[string]common.Nozzle
 
 	//outgoing nozzles of the pipeline
-	targets map[string]Nozzle
+	targets map[string]common.Nozzle
 
 	//runtime context of the pipeline
-	context PipelineRuntimeContext
+	context common.PipelineRuntimeContext
 
 	//	//communication channel with PipelineManager
 	//	reqch chan []interface{}
@@ -36,15 +40,15 @@ type GenericPipeline struct {
 }
 
 //Get the runtime context of this pipeline
-func (genericPipeline *GenericPipeline) RuntimeContext() PipelineRuntimeContext {
+func (genericPipeline *GenericPipeline) RuntimeContext() common.PipelineRuntimeContext {
 	return genericPipeline.context
 }
 
-func (genericPipeline *GenericPipeline) SetRuntimeContext(ctx PipelineRuntimeContext) {
+func (genericPipeline *GenericPipeline) SetRuntimeContext(ctx common.PipelineRuntimeContext) {
 	genericPipeline.context = ctx
 }
 
-func (genericPipeline *GenericPipeline) startPart(part Part, settings map[string]interface{}) error {
+func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map[string]interface{}) error {
 	var err error = nil
 	//start downstreams
 	if part.Connector() != nil {
@@ -66,59 +70,59 @@ func (genericPipeline *GenericPipeline) startPart(part Part, settings map[string
 //settings - a map of parameter to start the pipeline. it can contain initialization paramters
 //			 for each processing steps and for runtime context of the pipeline.
 func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) error {
-	log.Println("Try to start the pipeline with settings = " + fmt.Sprint(settings))
+	logger.Debugf ("Try to start the pipeline with settings = %s", fmt.Sprint(settings))
 	var err error
 
 	genericPipeline.stateLock.Lock()
 	defer genericPipeline.stateLock.Unlock()
 
-	log.Println("Start sources")
 	//start all the processing steps of the Pipeline
 	//start the incoming nozzle which would start the downstream steps
 	//subsequently
 	for _, source := range genericPipeline.sources {
 		err = genericPipeline.startPart(source,settings)
-		log.Println("Incoming nozzle " + source.Id() + " is started")
+//		log.Println("Incoming nozzle " + source.Id() + " is started")
+		logger.Debugf ("Incoming nozzle %s is started", source.Id())
 	}
-	log.Println("All parts has been started")
+//	log.Println("All parts has been started")
+	logger.Info ("All parts has been started")
 
-	log.Println("Try to open all outgoing nozzles")
 	//open targets
 	for _, target := range genericPipeline.targets {
 		err = target.Open()
 		if err != nil {
-			log.Println("Failed to open outgoing nozzle " + target.Id())
+			logger.Errorf ("Failed to open outgoing nozzle %s", target.Id())
 			return err
 		}
 	}
-	log.Println("All outgoing nozzles have been opened")
+	logger.Debug ("All outgoing nozzles have been opened")
 
-	log.Println("Try to open all incoming nozzles")
 	//open source
 	for _, source := range genericPipeline.sources {
 		err = source.Open()
 		if err != nil {
-			log.Println("Failed to open incoming nozzle " + source.Id())
+			logger.Errorf ("Failed to open incoming nozzle %s", source.Id())
 			return err
 		}
 	}
-	log.Println("All incoming nozzles have been opened")
+	logger.Debug ("All incoming nozzles have been opened")
 
-	log.Println("Try to start the runtime context")
+	logger.Debug ("Try to start the runtime context")
 	//start the runtime
 	err = genericPipeline.context.Start(settings)
-	log.Println("The runtime context is started")
+	logger.Debug ("The runtime context is started")
 
 	//set its state to be active
 	genericPipeline.isActive = true
 
-	log.Printf("Pipeline %s is started\n", genericPipeline.Topic())
+	logger.Infof ("Pipeline %s is started", genericPipeline.Topic())
 
 	return err
 }
 
-func (genericPipeline *GenericPipeline) stopPart(part Part) error {
+func (genericPipeline *GenericPipeline) stopPart(part common.Part) error {
 	err := part.Stop()
+	
 	if err == nil {
 		if part.Connector() != nil {
 			downstreamParts := part.Connector().DownStreams()
@@ -147,7 +151,7 @@ func (genericPipeline *GenericPipeline) Stop() error {
 			return err
 		}
 	}
-	log.Println("Incoming nozzles are closed, preparing to stop.")
+	logger.Debug("Incoming nozzles are closed, preparing to stop.")
 
 	//stop the sources
 	//source nozzle would notify the stop intention to its downsteam steps
@@ -172,11 +176,11 @@ func (genericPipeline *GenericPipeline) Stop() error {
 
 }
 
-func (genericPipeline *GenericPipeline) Sources() map[string]Nozzle {
+func (genericPipeline *GenericPipeline) Sources() map[string]common.Nozzle {
 	return genericPipeline.sources
 }
 
-func (genericPipeline *GenericPipeline) Targets() map[string]Nozzle {
+func (genericPipeline *GenericPipeline) Targets() map[string]common.Nozzle {
 	return genericPipeline.targets
 }
 
@@ -189,6 +193,7 @@ func (genericPipeline *GenericPipeline) waitToStop(finchan chan bool) {
 	for {
 		for _, target := range genericPipeline.targets {
 			if target.IsStarted() {
+				logger.Infof("outgoing nozzle %s is still running", target.Id())
 				done = false
 			}
 		}
@@ -199,7 +204,7 @@ func (genericPipeline *GenericPipeline) waitToStop(finchan chan bool) {
 	finchan <- true
 }
 
-func NewGenericPipeline(t string, sources map[string]Nozzle, targets map[string]Nozzle) *GenericPipeline {
+func NewGenericPipeline(t string, sources map[string]common.Nozzle, targets map[string]common.Nozzle) *GenericPipeline {
 	pipeline := &GenericPipeline{topic: t,
 		sources:  sources,
 		targets:  targets,
@@ -208,8 +213,8 @@ func NewGenericPipeline(t string, sources map[string]Nozzle, targets map[string]
 	return pipeline
 }
 
-func GetAllParts(p Pipeline) map[string]Part {
-	parts := make(map[string]Part)
+func GetAllParts(p common.Pipeline) map[string]common.Part {
+	parts := make(map[string]common.Part)
 	sources := p.Sources()
 	for key, source := range sources {
 		parts[key] = source
@@ -220,7 +225,7 @@ func GetAllParts(p Pipeline) map[string]Part {
 	return parts
 }
 
-func addDownStreams(p Part, partsMap map[string]Part) {
+func addDownStreams(p common.Part, partsMap map[string]common.Part) {
 	connector := p.Connector()
 	if connector != nil {
 		downstreams := connector.DownStreams()
@@ -233,4 +238,4 @@ func addDownStreams(p Part, partsMap map[string]Part) {
 }
 
 //enforcer for GenericPipeline to implement Pipeline
-var _ Pipeline = (*GenericPipeline)(nil)
+var _ common.Pipeline = (*GenericPipeline)(nil)

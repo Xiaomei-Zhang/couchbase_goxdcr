@@ -5,10 +5,12 @@ import (
 	"fmt"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	part "github.com/Xiaomei-Zhang/couchbase_goxdcr/part"
-	"log"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
 	"reflect"
 	"sync"
 )
+
+var lt = log.NewLogger("testIncomingNozzle", log.LogLevelInfo)
 
 type testIncomingNozzle struct {
 	part.AbstractPart
@@ -22,18 +24,19 @@ type testIncomingNozzle struct {
 	isStarted bool
 
 	//the lock to serialize the request to open\close the nozzle
-	stateLock sync.Mutex
+	openLock sync.RWMutex
+	startLock sync.RWMutex
 
 	waitGrp sync.WaitGroup
 }
 
 func newInComingNozzle(id string) *testIncomingNozzle {
-	return &testIncomingNozzle{part.NewAbstractPart(id), 0, nil, false, false, sync.Mutex{}, sync.WaitGroup{}}
+	return &testIncomingNozzle{part.NewAbstractPart(id), 0, nil, false, false, sync.RWMutex{}, sync.RWMutex{}, sync.WaitGroup{}}
 }
 
 func (p *testIncomingNozzle) Start(settings map[string]interface{}) error {
-	p.stateLock.Lock()
-	defer p.stateLock.Unlock()
+	p.startLock.Lock()
+	defer p.startLock.Unlock()
 
 	p.init(settings)
 	go p.run(p.communicationChan)
@@ -42,7 +45,7 @@ func (p *testIncomingNozzle) Start(settings map[string]interface{}) error {
 }
 
 func (p *testIncomingNozzle) init(settings map[string]interface{}) error {
-	p.communicationChan = make(chan []interface{}, 2)
+	p.communicationChan = make(chan []interface{})
 
 	start, ok := settings["start_int"]
 	if ok {
@@ -54,20 +57,38 @@ func (p *testIncomingNozzle) init(settings map[string]interface{}) error {
 	return nil
 }
 
-func (p *testIncomingNozzle) run(msgChan chan []interface{}) {
-	log.Println("run with msgChan = " + fmt.Sprint(msgChan))
-	counter := 0
+func (p *testIncomingNozzle) monitor(msgChan chan []interface{}, ctlChan chan bool) {
+	logger.Debug("monitor is started.....")
 loop:
 	for {
-//		log.Println("Loop " + fmt.Sprint(counter))
+		select {
+		case <-ctlChan:
+			break loop
+		default:
+			if len(msgChan) > 0 {
+				logger.Debugf("Monitor***channel size is %d", len(msgChan))
+			}
+
+		}
+	}
+	logger.Info("Monitor routine stopped !!!")
+}
+
+func (p *testIncomingNozzle) run(msgChan chan []interface{}) {
+	lt.Infof("run with msgChan = %s", fmt.Sprint(msgChan))
+	counter := 0
+	incCounter := 1
+	data := p.start_int
+loop:
+	for {
 		select {
 		case msg := <-msgChan:
+			lt.Infof("Received msg=%s", fmt.Sprint(msg))
 			cmd := msg[0].(int)
-			log.Printf("Received cmd=%d\n", cmd)
 			respch := msg[1].(chan []interface{})
 			switch cmd {
 			case cmdStop:
-				log.Println("Received Stop request")
+				lt.Info("Received Stop request")
 				close(msgChan)
 				respch <- []interface{}{true}
 				break loop
@@ -75,50 +96,56 @@ loop:
 				respch <- []interface{}{true}
 			}
 		default:
-			if p.IsOpen() && counter == 100 {
+			if p.IsOpen() && counter == 1000000 {
 				//async
 				p.waitGrp.Add(1)
-				go p.pumpData()
+				go p.pumpData(data + incCounter)
 				counter = 0
+				incCounter++
 			}
+
 		}
 		counter++
 	}
 }
 
-func (p *testIncomingNozzle) pumpData() {
+func (p *testIncomingNozzle) pumpData(data int) {
 	//raise DataReceived event
-	if p.start_int < 1000 {
-		p.start_int++
-		//raise DataReceived event
-		p.RaiseEvent(common.DataReceived, p.start_int, p, nil, nil)
+	if data < 1000 {
 
-		log.Printf("Pump data: %d\n", p.start_int)
-		p.Connector().Forward(p.start_int)
+		//raise DataReceived event
+		p.RaiseEvent(common.DataReceived, data, p, nil, nil)
+
+		lt.Debugf("Pump data: %d", data)
+		p.Connector().Forward(data)
 	}
 
 	p.waitGrp.Done()
 }
 
 func (p *testIncomingNozzle) Stop() error {
-	p.stateLock.Lock()
-	defer p.stateLock.Unlock()
+	p.startLock.Lock()
+	defer p.startLock.Unlock()
 
-	log.Printf("Try to stop part %s", p.Id())
-	err := p.stopSelf()
+	lt.Infof("Try to stop part %s", p.Id())
+	err := p.stopSelf(p.communicationChan)
 	if err != nil {
 		return err
 	}
-	log.Printf("Part %s is stopped\n", p.Id())
+	lt.Infof("Part %s is stopped", p.Id())
 
 	return err
 }
 
-func (p *testIncomingNozzle) stopSelf() error {
-	log.Println("Start stopSelf.... msgChan = " + fmt.Sprint(p.communicationChan))
+func (p *testIncomingNozzle) stopSelf(msgChan chan []interface{}) error {
+
 	respChan := make(chan []interface{})
-	p.communicationChan <- []interface{}{cmdStop, respChan}
-	log.Println("send Stop request to communication channel " + fmt.Sprint(p.communicationChan))
+	msgChan <- []interface{}{cmdStop, respChan}
+
+	logger.Info("Waiting....")
+	ctlChan := make(chan bool)
+	go p.monitor(msgChan, ctlChan)
+
 	response := <-respChan
 	succeed := response[0].(bool)
 
@@ -127,19 +154,19 @@ func (p *testIncomingNozzle) stopSelf() error {
 
 	if succeed {
 		p.isStarted = false
-		log.Printf("Part %s is stopped\n", p.Id())
+		lt.Debugf("Part %s is stopped", p.Id())
 		return nil
 	} else {
 		error_msg := response[1].(string)
-		log.Printf("Failed to stop part %s\n", p.Id())
+		lt.Debugf("Failed to stop part %s", p.Id())
 		return errors.New(error_msg)
 	}
 }
 
 //Data can be passed to the downstream
 func (p *testIncomingNozzle) Open() error {
-	p.stateLock.Lock()
-	defer p.stateLock.Unlock()
+	p.openLock.Lock()
+	defer p.openLock.Unlock()
 
 	p.isOpen = true
 	return nil
@@ -149,27 +176,27 @@ func (p *testIncomingNozzle) Open() error {
 //
 //Data can get to this nozzle, but would not be passed to the downstream
 func (p *testIncomingNozzle) Close() error {
-	p.stateLock.Lock()
-	defer p.stateLock.Unlock()
+	p.openLock.Lock()
+	defer p.openLock.Unlock()
 
 	p.isOpen = false
 
-	log.Printf("Nozzle %s is closed\n", p.Id())
+	lt.Debugf("Nozzle %s is closed", p.Id())
 	return nil
 }
 
 //IsOpen returns true if the nozzle is open; returns false if the nozzle is closed
 func (p *testIncomingNozzle) IsOpen() bool {
-	p.stateLock.Lock()
-	defer p.stateLock.Unlock()
+	p.openLock.RLock()
+	defer p.openLock.RUnlock()
 
 	return p.isOpen
 }
 
 //IsStarted returns true if the nozzle is started; otherwise returns false
 func (p *testIncomingNozzle) IsStarted() bool {
-	p.stateLock.Lock()
-	defer p.stateLock.Unlock()
+	p.startLock.RLock()
+	defer p.startLock.RUnlock()
 
 	return p.isStarted
 }

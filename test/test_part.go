@@ -4,10 +4,12 @@ import (
 	"errors"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	part "github.com/Xiaomei-Zhang/couchbase_goxdcr/part"
-	"log"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
 	"reflect"
 	"sync"
 )
+
+var logger_part = log.NewLogger ("testPart", log.LogLevelInfo)
 
 //constants
 var cmdStop = 0
@@ -26,7 +28,7 @@ type testPart struct {
 
 	//the lock to serialize the request to start\stop the nozzle
 	stateLock sync.Mutex
-	
+
 	waitGrp sync.WaitGroup
 }
 
@@ -37,7 +39,7 @@ func newTestPart(id string) *testPart {
 }
 
 func (p *testPart) Start(settings map[string]interface{}) error {
-	log.Printf("Try to start part %s\n", p.Id())
+	logger_part.Debugf("Try to start part %s", p.Id())
 	p.stateLock.Lock()
 	defer p.stateLock.Unlock()
 
@@ -59,22 +61,22 @@ func (p *testPart) init(settings map[string]interface{}) error {
 		p.increase_amount = amt.(int)
 	}
 
-	log.Printf("Part %s is initialized\n", p.Id())
+	logger_part.Debugf("Part %s is initialized\n", p.Id())
 	return nil
 }
 
 func (p *testPart) run() {
-	log.Printf("Part %s starts running\n", p.Id())
+	logger_part.Infof("Part %s starts running", p.Id())
 loop:
 	for {
 		select {
 		case msg := <-p.communicationChan:
 			cmd := msg[0].(int)
-			log.Printf("Received cmd=%d\n", cmd)
+			logger_part.Debugf("Received cmd=%d", cmd)
 			respch := msg[1].(chan []interface{})
 			switch cmd {
 			case cmdStop:
-				log.Println("Received Stop request");
+				logger_part.Info("Received Stop request")
 				close(p.communicationChan)
 				close(p.dataChan)
 				respch <- []interface{}{true}
@@ -98,7 +100,7 @@ func (p *testPart) process(data interface{}) {
 	p.RaiseEvent(common.DataProcessed, data, p, nil, nil)
 
 	p.Connector().Forward(newData)
-	
+
 	p.waitGrp.Done()
 }
 
@@ -110,7 +112,7 @@ func (p *testPart) Stop() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Part %s is stopped\n", p.Id())
+	logger_part.Debugf("Part %s is stopped", p.Id())
 
 	return err
 }
@@ -120,28 +122,28 @@ func (p *testPart) stopSelf() error {
 	p.communicationChan <- []interface{}{cmdStop, respChan}
 	response := <-respChan
 	succeed := response[0].(bool)
-	
+
 	//wait for all the data processing go routine to finsh
 	p.waitGrp.Wait()
-	
+
 	if succeed {
 		p.isStarted = false
-		log.Printf("Part %s is stopped\n", p.Id())
+		logger_part.Debugf("Part %s is stopped", p.Id())
 		return nil
 	} else {
 		error_msg := response[1].(string)
-		log.Printf("Failed to stop part %s\n", p.Id())
+		logger_part.Debugf("Failed to stop part %s", p.Id())
 		return errors.New(error_msg)
 	}
 }
 
 func (p *testPart) Receive(data interface{}) error {
-	log.Println("Data reached, try to send it to data channale")
+	logger_part.Debug("Data reached, try to send it to data channale")
 	if p.dataChan == nil || !p.IsStarted() {
 		return errors.New("The Part is not running, not ready to process data")
 	}
 	p.dataChan <- data
-	log.Println("data Received")
+	logger_part.Debug("data Received")
 
 	//raise DataReceived event
 	p.RaiseEvent(common.DataReceived, data, p, nil, nil)

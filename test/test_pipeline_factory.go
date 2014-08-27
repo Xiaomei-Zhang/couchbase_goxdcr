@@ -3,6 +3,7 @@ package test
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	connector "github.com/Xiaomei-Zhang/couchbase_goxdcr/connector"
+	pipeline "github.com/Xiaomei-Zhang/couchbase_goxdcr/pipeline"
 	pipeline_ctx "github.com/Xiaomei-Zhang/couchbase_goxdcr/pipeline_ctx"
 )
 
@@ -38,12 +39,17 @@ func (f *testPipelineFactory) NewPipeline(topic string) (common.Pipeline, error)
 	targets["out1"] = outNozzle1
 	targets["out2"] = outNozzle2
 
-	pipeline := common.NewGenericPipeline(topic, sources, targets)
+	pipeline := pipeline.NewGenericPipeline(topic, sources, targets)
 
 	ctx, err := pipeline_ctx.New(pipeline)
-	ctx.RegisterService ("error_handler", NewErrorHandler())
-	ctx.RegisterService ("counter_statistic_collector", NewMetricsCollector ())
+	metricsCollector := NewMetricsCollector()
+	
+	outNozzle1.RegisterPartEventListener (common.DataSent, metricsCollector)
+	outNozzle2.RegisterPartEventListener (common.DataSent, metricsCollector)
+	
+	ctx.RegisterService("error_handler", NewErrorHandler())
+	ctx.RegisterService("counter_statistic_collector", metricsCollector)
 
-	pipeline.SetRuntimeContext (ctx)
+	pipeline.SetRuntimeContext(ctx)
 	return pipeline, err
 }

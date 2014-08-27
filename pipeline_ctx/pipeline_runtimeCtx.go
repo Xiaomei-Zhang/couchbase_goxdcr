@@ -2,10 +2,12 @@ package pipeline_ctx
 
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
-	"sync"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
 	"errors"
-	"log"
+	"sync"
 )
+
+var logger = log.NewLogger ("PipelineRuntimeCtx", log.LogLevelInfo)
 
 type PipelineRuntimeCtx struct {
 	//registered runtime pipeline service
@@ -20,12 +22,12 @@ type PipelineRuntimeCtx struct {
 	isRunning bool
 }
 
-func New (p common.Pipeline) (*PipelineRuntimeCtx, error) {
-	ctx := &PipelineRuntimeCtx {
-		runtime_svcs : make (map[string]common.PipelineService),
-		pipeline : p,
-		isRunning : false}
-	
+func New(p common.Pipeline) (*PipelineRuntimeCtx, error) {
+	ctx := &PipelineRuntimeCtx{
+		runtime_svcs: make(map[string]common.PipelineService),
+		pipeline:     p,
+		isRunning:    false}
+
 	return ctx, nil
 }
 
@@ -38,9 +40,9 @@ func (ctx *PipelineRuntimeCtx) Start(params map[string]interface{}) error {
 	for name, svc := range ctx.runtime_svcs {
 		err = svc.Start(params)
 		if err != nil {
-			log.Println("Failed to start service " + name)
+			logger.Errorf("Failed to start service %s", name)
 		}
-		log.Println("Service " + name + " has been started")
+		logger.Debugf("Service %s has been started", name)
 	}
 
 	if err == nil {
@@ -94,31 +96,30 @@ func (ctx *PipelineRuntimeCtx) RegisterService(svc_name string, svc common.Pipel
 	}
 
 	ctx.runtime_svcs[svc_name] = svc
-	
+
 	return svc.Attach(ctx.pipeline)
 
 }
 
-func (ctx *PipelineRuntimeCtx) UnregisterService (srv_name string) error {
+func (ctx *PipelineRuntimeCtx) UnregisterService(srv_name string) error {
 	ctx.stateLock.Lock()
 	defer ctx.stateLock.Unlock()
 
 	var err error
 	svc := ctx.runtime_svcs[srv_name]
-	
+
 	if svc != nil && ctx.isRunning {
 		err = svc.Stop()
-		if (err != nil) {
+		if err != nil {
 			//log error
 		}
 	}
-	
-	//remove it from the map
-	delete (ctx.runtime_svcs, srv_name)	
-	
-	return err	
-}
 
+	//remove it from the map
+	delete(ctx.runtime_svcs, srv_name)
+
+	return err
+}
 
 //enforcer for PipelineRuntimeCtx to implement PipelineRuntimeContext
 var _ common.PipelineRuntimeContext = (*PipelineRuntimeCtx)(nil)

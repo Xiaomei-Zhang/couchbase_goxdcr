@@ -2,15 +2,19 @@ package pipeline_manager
 
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
-	"log"
 	"sync"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
 )
+
+var logger = log.NewLogger ("PipelineManager", log.LogLevelInfo)
 
 type pipelineManager struct {
 	pipeline_factory common.PipelineFactory
 	live_pipelines   map[string]common.Pipeline
-
+	
 	once sync.Once
+	
+	mapLock sync.Mutex
 }
 
 var pipeline_mgr pipelineManager
@@ -19,13 +23,12 @@ func PipelineManager(factory common.PipelineFactory) {
 	pipeline_mgr.once.Do(func() {
 		pipeline_mgr.pipeline_factory = factory
 		pipeline_mgr.live_pipelines = make (map[string]common.Pipeline)
-		log.Println("Pipeline Manager is constucted")
+		logger.Info("Pipeline Manager is constucted")
 	})
 }
 
 func StartPipeline(topic string, settings map[string]interface{}) (common.Pipeline, error) {
 	p, err := pipeline_mgr.startPipeline(topic, settings)
-	log.Println("RETURN !!!!")
 	return p, err
 }
 
@@ -51,42 +54,63 @@ func RuntimeCtx(topic string) common.PipelineRuntimeContext {
 
 func (pipelineMgr *pipelineManager) startPipeline(topic string, settings map[string]interface{}) (common.Pipeline, error) {
 	var err error
-	log.Println("starting the pipeline " + topic)
+	logger.Infof("Starting the pipeline %s", topic)
 
 	if f, ok := pipelineMgr.live_pipelines[topic]; !ok {
 		f, err = pipelineMgr.pipeline_factory.NewPipeline(topic)
 		if err != nil {
-			log.Println("Failed to construct a new pipeline: " + err.Error())
+			logger.Errorf("Failed to construct a new pipeline: %s", err.Error())
 			return f, err
 		}
 
-		log.Println("Pipeline is constructed, start it")
+		logger.Info("Pipeline is constructed, start it")
 		err = f.Start(settings)
 		if err != nil {
-			log.Println("Failed to start the pipeline")
+			logger.Error("Failed to start the pipeline")
 			return f, err
 		}
-		pipelineMgr.live_pipelines[topic] = f
-		log.Println("RETURN from startPipeline...")
+		pipelineMgr.addPipelineToMap(f)
 		return f, nil
 	} else {
 		//the pipeline is already running
-		log.Println("The pipeline asked to be started is already running")
+		logger.Info("The pipeline asked to be started is already running")
 		return f, err
 	}
 	return nil, err
 }
 
+func (pipelineMgr *pipelineManager) addPipelineToMap (p common.Pipeline) {
+	pipelineMgr.mapLock.Lock()
+	defer pipelineMgr.mapLock.Unlock()
+	
+	pipelineMgr.live_pipelines[p.Topic()] = p
+
+}
+
+func (pipelineMgr *pipelineManager) getPipelineFromMap (topic string) common.Pipeline{
+	pipelineMgr.mapLock.Lock()
+	defer pipelineMgr.mapLock.Unlock()
+
+	return pipelineMgr.live_pipelines[topic]
+}
+
+func (pipelineMgr *pipelineManager) removePipelineToMap (p common.Pipeline) {
+	pipelineMgr.mapLock.Lock()
+	defer pipelineMgr.mapLock.Unlock()
+
+	delete (pipelineMgr.live_pipelines, p.Topic())
+}
+
 func (pipelineMgr *pipelineManager) stopPipeline(topic string) error {
-	log.Println("Try to stop the pipeline " + topic)
+	logger.Infof("Try to stop the pipeline %s", topic)
 	var err error
 	if f, ok := pipelineMgr.live_pipelines[topic]; ok {
 		f.Stop()
-		log.Println("Pipeline is stopped")
-		delete(pipelineMgr.live_pipelines, topic)
+		logger.Debug("Pipeline is stopped")
+		pipelineMgr.removePipelineToMap(f)
 	} else {
 		//The named pipeline is not active
-		log.Println("The pipeline asked to be stopped is not running.")
+		logger.Debug("The pipeline asked to be stopped is not running.")
 	}
 	return err
 }
@@ -101,7 +125,7 @@ func (pipelineMgr *pipelineManager) runtimeCtx(topic string) common.PipelineRunt
 }
 
 func (pipelineMgr *pipelineManager) pipeline(topic string) common.Pipeline {
-	pipeline := pipelineMgr.live_pipelines[topic]
+	pipeline := pipelineMgr.getPipelineFromMap(topic)
 	return pipeline
 }
 

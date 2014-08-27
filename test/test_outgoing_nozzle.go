@@ -5,9 +5,11 @@ import (
 	"fmt"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	part "github.com/Xiaomei-Zhang/couchbase_goxdcr/part"
-	"log"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
 	"sync"
 )
+
+var logger_outnozzle = log.NewLogger ("testOutgoingNozzle", log.LogLevelDebug)
 
 type testOutgoingNozzle struct {
 	part.AbstractPart
@@ -21,7 +23,7 @@ type testOutgoingNozzle struct {
 
 	//the lock to serialize the request to open\close the nozzle
 	stateLock sync.Mutex
-	
+
 	waitGrp sync.WaitGroup
 }
 
@@ -30,7 +32,7 @@ func newOutgoingNozzle(id string) *testOutgoingNozzle {
 }
 
 func (p *testOutgoingNozzle) Start(settings map[string]interface{}) error {
-	log.Printf("Try to start part %s\n", p.Id())
+	logger_outnozzle.Debugf("Try to start part %s", p.Id())
 	p.stateLock.Lock()
 	defer p.stateLock.Unlock()
 
@@ -41,23 +43,23 @@ func (p *testOutgoingNozzle) Start(settings map[string]interface{}) error {
 }
 
 func (p *testOutgoingNozzle) init(settings map[string]interface{}) error {
-	p.dataChan = make (chan interface{})
+	p.dataChan = make(chan interface{})
 	p.communicationChan = make(chan []interface{})
 	return nil
 }
 
 func (p *testOutgoingNozzle) run() {
-	log.Printf("Part %s is running\n", p.Id())
+	logger_outnozzle.Debugf("Part %s is running", p.Id())
 loop:
 	for {
 		select {
 		case msg := <-p.communicationChan:
 			cmd := msg[0].(int)
-			log.Printf("Received cmd=%d\n", cmd)
+			logger_outnozzle.Debugf("Received cmd=%d", cmd)
 			respch := msg[1].(chan []interface{})
 			switch cmd {
 			case cmdStop:
-				log.Println("Received Stop request");
+				logger_outnozzle.Info("Received Stop request")
 				close(p.communicationChan)
 				respch <- []interface{}{true}
 				break loop
@@ -76,10 +78,10 @@ loop:
 }
 
 func (p *testOutgoingNozzle) printData(data interface{}) {
-	log.Printf("Send out data %d\n", data.(int))
+	logger_outnozzle.Debugf("Send out data %d", data.(int))
 	fmt.Printf("data: %d\n", data.(int))
 	p.RaiseEvent(common.DataSent, data, p, nil, nil)
-	
+
 	p.waitGrp.Done()
 }
 
@@ -91,8 +93,8 @@ func (p *testOutgoingNozzle) Stop() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Part %s is stopped\n", p.Id())
-	
+	logger_outnozzle.Debugf("Part %s is stopped", p.Id())
+
 	return err
 }
 
@@ -101,21 +103,20 @@ func (p *testOutgoingNozzle) stopSelf() error {
 	p.communicationChan <- []interface{}{cmdStop, respChan}
 	response := <-respChan
 	succeed := response[0].(bool)
-	
+
 	//wait for all spawned data-process goroutines to finish
 	p.waitGrp.Wait()
-	
+
 	if succeed {
 		p.isStarted = false
-		log.Printf("Part %s is stopped\n", p.Id())
+		logger_outnozzle.Infof("Part %s is stopped", p.Id())
 		return nil
 	} else {
 		error_msg := response[1].(string)
-		log.Printf("Failed to stop part %s\n", p.Id())
+		logger_outnozzle.Errorf("Failed to stop part %s", p.Id())
 		return errors.New(error_msg)
 	}
 }
-
 
 //Data can be passed to the downstream
 func (p *testOutgoingNozzle) Open() error {
@@ -154,12 +155,12 @@ func (p *testOutgoingNozzle) IsStarted() bool {
 }
 
 func (p *testOutgoingNozzle) Receive(data interface{}) error {
-	log.Println("Data reached, try to send it to data channale")
+	logger_outnozzle.Debug("Data reached, try to send it to data channale")
 	if p.dataChan == nil {
 		return errors.New("The Part is not running, not ready to process data")
 	}
 	p.dataChan <- data
-	log.Println("data Received")
+	logger_outnozzle.Debug("data Received")
 
 	//raise DataReceived event
 	p.RaiseEvent(common.DataReceived, data, p, nil, nil)
