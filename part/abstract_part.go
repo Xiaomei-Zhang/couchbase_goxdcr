@@ -60,7 +60,7 @@ func (p *AbstractPart) RegisterPartEventListener(eventType common.PartEventType,
 
 	listenerList := p.event_listeners[eventType]
 	if listenerList == nil {
-		listenerList = make([]common.PartEventListener, 15)
+		listenerList = make([]common.PartEventListener, 0, 15)
 	}
 
 	listenerList = append(listenerList, listener)
