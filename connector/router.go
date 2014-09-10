@@ -70,3 +70,12 @@ func (router *Router) AddDownStream(partId string, part common.Part) error {
 	router.downStreamParts[partId] = part
 	return nil
 }
+
+// set or replace routing call back function.
+// this may be allowed when router is still running 
+func (router *Router) SetRoutingCallBackFunc(routing_callback *Routing_Callback_Func) {
+	router.stateLock.Lock()
+	defer router.stateLock.Unlock()
+	
+	router.routing_callback = routing_callback
+}
