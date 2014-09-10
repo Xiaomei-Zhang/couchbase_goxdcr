@@ -10,18 +10,25 @@ import (
 
 var logger = log.NewLogger("AbstractPart", log.LogLevelInfo)
 
+type IsStarted_Callback_Func func() bool
+
 type AbstractPart struct {
 	connector common.Connector
 	id        string
 
+	isStarted_callback      *IsStarted_Callback_Func
+
 	event_listeners map[common.PartEventType][]common.PartEventListener
 	listenerLock sync.Mutex
+	
+	stateLock sync.RWMutex 
 }
 
-func NewAbstractPart(id string) AbstractPart {
+func NewAbstractPart(id string, isStarted_callback *IsStarted_Callback_Func) AbstractPart {
 	return AbstractPart{
 		id:              id,
 		connector:       nil,
+		isStarted_callback: isStarted_callback,
 		event_listeners: make(map[common.PartEventType][]common.PartEventListener),
 	}
 }
@@ -42,10 +49,23 @@ func (p *AbstractPart) RaiseEvent(eventType common.PartEventType, data interface
 }
 
 func (p *AbstractPart) Connector() common.Connector {
+	p.stateLock.RLock()
+	defer p.stateLock.RUnlock()
+	
 	return p.connector
 }
 
 func (p *AbstractPart) SetConnector(connector common.Connector) error {
+	if (*p.isStarted_callback) == nil {
+		return errors.New("IsStarted() call back func has not been defined for part " + p.Id())
+	}
+	if (*p.isStarted_callback)() {
+		return errors.New("Cannot set connector on part" + p.Id() +" since the part is still running.")
+	}
+	
+	p.stateLock.Lock()
+	defer p.stateLock.Unlock()
+	
 	p.connector = connector
 	return nil
 }

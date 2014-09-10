@@ -2,6 +2,7 @@ package connector
 
 import (
 	"errors"
+	"sync"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 )
 
@@ -18,6 +19,8 @@ type Routing_Callback_Func func(data interface{}) (map[string]interface{}, error
 type Router struct {
 	downStreamParts map[string]common.Part  // partId -> Part 
 	routing_callback      *Routing_Callback_Func
+	
+	stateLock sync.RWMutex
 }
 
 func NewRouter(downStreamParts map[string]common.Part, routing_callback *Routing_Callback_Func) *Router{	
@@ -29,6 +32,9 @@ func NewRouter(downStreamParts map[string]common.Part, routing_callback *Routing
 }
 
 func (router *Router) Forward(data interface{}) error {
+	router.stateLock.RLock()
+	defer router.stateLock.RUnlock()
+	
 	if len(router.downStreamParts) == 0 || *router.routing_callback == nil {
 		return ErrorInvalidRouterConfig
 	}
@@ -51,10 +57,16 @@ func (router *Router) Forward(data interface{}) error {
 }
 
 func (router *Router) DownStreams() map[string]common.Part {
+	router.stateLock.RLock()
+	defer router.stateLock.RUnlock()
+	
 	return router.downStreamParts
 }
 
 func (router *Router) AddDownStream(partId string, part common.Part) error {
+	router.stateLock.Lock()
+	defer router.stateLock.Unlock()
+	
 	router.downStreamParts[partId] = part
 	return nil
 }
