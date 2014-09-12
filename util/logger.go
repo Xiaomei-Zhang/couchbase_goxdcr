@@ -4,7 +4,6 @@ import (
 	"log"
 	"io"
 	"os"
-	"fmt"
 )
 
 const (
@@ -31,8 +30,7 @@ func NewLogger (module string, logLevel int) *CommonLogger{
 
 func (l *CommonLogger) logMsgf (level int, format string, v...interface{}) {
 	if (l.logLevel >= level) {
-		msg := fmt.Sprintf(format, v)
-		l.logger.Println(msg)
+		l.logger.Printf(format, v...)
 	}
 }
 
@@ -43,19 +41,19 @@ func (l *CommonLogger) logMsg (level int, msg string) {
 }
 
 func (l *CommonLogger) Infof (format string, v...interface{}) {
-	l.logMsgf(LogLevelInfo, "[INFO] "+format, v)
+	l.logMsgf(LogLevelInfo, "[INFO] "+format, v...)
 }
 
 func (l *CommonLogger) Debugf (format string, v...interface{}) {
-	l.logMsgf(LogLevelDebug, "[DEBUG] "+format, v)
+	l.logMsgf(LogLevelDebug, "[DEBUG] "+format, v...)
 }
 
 func (l *CommonLogger) Tracef (format string, v...interface{}) {
-	l.logMsgf(LogLevelTrace, "[TRACE] "+format, v)
+	l.logMsgf(LogLevelTrace, "[TRACE] "+format, v...)
 }
 
 func (l *CommonLogger) Errorf (format string, v...interface{}) {
-	l.logMsgf(LogLevelTrace, "[ERROR] "+format, v)
+	l.logMsgf(LogLevelError, "[ERROR] "+format, v...)
 }
 
 func (l *CommonLogger) Info (msg string) {
@@ -71,5 +69,5 @@ func (l *CommonLogger) Trace (msg string) {
 }
 
 func (l *CommonLogger) Error (msg string) {
-	l.logMsg(LogLevelTrace, "[ERROR] "+msg)
+	l.logMsg(LogLevelError, "[ERROR] "+msg)
 }
