@@ -1,14 +1,16 @@
 package pipeline
 
 import (
-	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	"fmt"
+	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
 	"sync"
-	
 )
 
-var logger = log.NewLogger ("GenericPipeline", log.LogLevelInfo)
+var logger = log.NewLogger("GenericPipeline", log.LogLevelInfo)
+
+//the function can construct part specific settings for the pipeline
+type PartsSettingsConstructor func(pipeline common.Pipeline, part common.Part, pipeline_settings map[string]interface{}) map[string]interface{}
 
 //GenericPipeline is the generic implementation of a data processing pipeline
 //
@@ -37,6 +39,8 @@ type GenericPipeline struct {
 
 	//the lock to serialize the request to start\stop the pipeline
 	stateLock sync.Mutex
+
+	partSetting_constructor PartsSettingsConstructor
 }
 
 //Get the runtime context of this pipeline
@@ -61,7 +65,11 @@ func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map
 		}
 	}
 
-	err = part.Start(settings)
+	partSettings := settings
+	if genericPipeline.partSetting_constructor != nil {
+		partSettings = genericPipeline.partSetting_constructor(genericPipeline, part, settings)
+	}
+	err = part.Start(partSettings)
 	return err
 }
 
@@ -70,7 +78,7 @@ func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map
 //settings - a map of parameter to start the pipeline. it can contain initialization paramters
 //			 for each processing steps and for runtime context of the pipeline.
 func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) error {
-	logger.Debugf ("Try to start the pipeline with settings = %s", fmt.Sprint(settings))
+	logger.Debugf("Try to start the pipeline with settings = %s", fmt.Sprint(settings))
 	var err error
 
 	genericPipeline.stateLock.Lock()
@@ -80,49 +88,47 @@ func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) e
 	//start the incoming nozzle which would start the downstream steps
 	//subsequently
 	for _, source := range genericPipeline.sources {
-		err = genericPipeline.startPart(source,settings)
-//		log.Println("Incoming nozzle " + source.Id() + " is started")
-		logger.Debugf ("Incoming nozzle %s is started", source.Id())
+		err = genericPipeline.startPart(source, settings)
+		logger.Debugf("Incoming nozzle %s is started", source.Id())
 	}
-//	log.Println("All parts has been started")
-	logger.Info ("All parts has been started")
+	logger.Info("All parts has been started")
 
 	//open targets
 	for _, target := range genericPipeline.targets {
 		err = target.Open()
 		if err != nil {
-			logger.Errorf ("Failed to open outgoing nozzle %s", target.Id())
+			logger.Errorf("Failed to open outgoing nozzle %s", target.Id())
 			return err
 		}
 	}
-	logger.Debug ("All outgoing nozzles have been opened")
+	logger.Debug("All outgoing nozzles have been opened")
 
 	//open source
 	for _, source := range genericPipeline.sources {
 		err = source.Open()
 		if err != nil {
-			logger.Errorf ("Failed to open incoming nozzle %s", source.Id())
+			logger.Errorf("Failed to open incoming nozzle %s", source.Id())
 			return err
 		}
 	}
-	logger.Debug ("All incoming nozzles have been opened")
+	logger.Debug("All incoming nozzles have been opened")
 
-	logger.Debug ("Try to start the runtime context")
+	logger.Debug("Try to start the runtime context")
 	//start the runtime
 	err = genericPipeline.context.Start(settings)
-	logger.Debug ("The runtime context is started")
+	logger.Debug("The runtime context is started")
 
 	//set its state to be active
 	genericPipeline.isActive = true
 
-	logger.Infof ("Pipeline %s is started", genericPipeline.Topic())
+	logger.Infof("Pipeline %s is started", genericPipeline.Topic())
 
 	return err
 }
 
 func (genericPipeline *GenericPipeline) stopPart(part common.Part) error {
 	err := part.Stop()
-	
+
 	if err == nil {
 		if part.Connector() != nil {
 			downstreamParts := part.Connector().DownStreams()
@@ -156,7 +162,7 @@ func (genericPipeline *GenericPipeline) Stop() error {
 	//stop the sources
 	//source nozzle would notify the stop intention to its downsteam steps
 	for _, source := range genericPipeline.sources {
-		err = genericPipeline.stopPart (source)
+		err = genericPipeline.stopPart(source)
 		if err != nil {
 			return err
 		}
@@ -209,6 +215,16 @@ func NewGenericPipeline(t string, sources map[string]common.Nozzle, targets map[
 		sources:  sources,
 		targets:  targets,
 		isActive: false}
+
+	return pipeline
+}
+
+func NewPipelineWithSettingConstructor(t string, sources map[string]common.Nozzle, targets map[string]common.Nozzle, partsSettingsConstructor PartsSettingsConstructor) *GenericPipeline {
+	pipeline := &GenericPipeline{topic: t,
+		sources:                 sources,
+		targets:                 targets,
+		isActive:                false,
+		partSetting_constructor: partsSettingsConstructor}
 
 	return pipeline
 }
