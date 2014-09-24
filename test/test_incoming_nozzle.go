@@ -31,7 +31,17 @@ type testIncomingNozzle struct {
 }
 
 func newInComingNozzle(id string) *testIncomingNozzle {
-	return &testIncomingNozzle{part.NewAbstractPart(id), 0, nil, false, false, sync.RWMutex{}, sync.RWMutex{}, sync.WaitGroup{}}
+	nozzle := &testIncomingNozzle{start_int :0, 
+	communicationChan: nil, 
+	isOpen: false, 
+	isStarted: false, 
+	openLock: sync.RWMutex{}, 
+	startLock: sync.RWMutex{}, 
+	waitGrp: sync.WaitGroup{}}
+	funcw := nozzle.IsStarted
+	funce := (part.IsStarted_Callback_Func)(funcw)
+	nozzle.AbstractPart = part.NewAbstractPart(id, &funce)
+	return nozzle
 }
 
 func (p *testIncomingNozzle) Start(settings map[string]interface{}) error {

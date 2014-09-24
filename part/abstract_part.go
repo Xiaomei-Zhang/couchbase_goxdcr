@@ -56,7 +56,7 @@ func (p *AbstractPart) Connector() common.Connector {
 }
 
 func (p *AbstractPart) SetConnector(connector common.Connector) error {
-	if (*p.isStarted_callback) == nil {
+	if p.isStarted_callback == nil || (*p.isStarted_callback) == nil {
 		return errors.New("IsStarted() call back func has not been defined for part " + p.Id())
 	}
 	if (*p.isStarted_callback)() {

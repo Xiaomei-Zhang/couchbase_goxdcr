@@ -33,8 +33,15 @@ type testPart struct {
 }
 
 func newTestPart(id string) *testPart {
-	abstractPart := part.NewAbstractPart(id)
-	p := &testPart{abstractPart, 0, nil, nil, false, sync.Mutex{}, sync.WaitGroup{}}
+	p := &testPart{increase_amount: 0, 
+	dataChan: nil, 
+	communicationChan: nil, 
+	isStarted: false, 
+	stateLock: sync.Mutex{}, 
+	waitGrp: sync.WaitGroup{}}
+	funcw := p.IsStarted
+	funce := (part.IsStarted_Callback_Func)(funcw)
+	p.AbstractPart = part.NewAbstractPart(id, &funce)
 	return p
 }
 

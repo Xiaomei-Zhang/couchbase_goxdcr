@@ -10,7 +10,7 @@ import (
 var logger = log.NewLogger("GenericPipeline", log.LogLevelInfo)
 
 //the function can construct part specific settings for the pipeline
-type PartsSettingsConstructor func(pipeline common.Pipeline, part common.Part, pipeline_settings map[string]interface{}) map[string]interface{}
+type PartsSettingsConstructor func(pipeline common.Pipeline, part common.Part, pipeline_settings map[string]interface{}) (map[string]interface{}, error)
 
 //GenericPipeline is the generic implementation of a data processing pipeline
 //
@@ -54,6 +54,7 @@ func (genericPipeline *GenericPipeline) SetRuntimeContext(ctx common.PipelineRun
 
 func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map[string]interface{}) error {
 	var err error = nil
+
 	//start downstreams
 	if part.Connector() != nil {
 		downstreamParts := part.Connector().DownStreams()
@@ -67,9 +68,20 @@ func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map
 
 	partSettings := settings
 	if genericPipeline.partSetting_constructor != nil {
-		partSettings = genericPipeline.partSetting_constructor(genericPipeline, part, settings)
+		logger.Debugf("Calling part setting constructor\n")
+		partSettings, err = genericPipeline.partSetting_constructor(genericPipeline, part, settings)
+		if err != nil {
+			return err
+		}
+
 	}
-	err = part.Start(partSettings)
+
+	if !part.IsStarted() {
+		err = part.Start(partSettings)
+	}else {
+		logger.Debugf("Part is already started\n")
+	}
+	
 	return err
 }
 
@@ -89,6 +101,9 @@ func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) e
 	//subsequently
 	for _, source := range genericPipeline.sources {
 		err = genericPipeline.startPart(source, settings)
+		if err != nil {
+			return err
+		}
 		logger.Debugf("Incoming nozzle %s is started", source.Id())
 	}
 	logger.Info("All parts has been started")
@@ -127,20 +142,92 @@ func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) e
 }
 
 func (genericPipeline *GenericPipeline) stopPart(part common.Part) error {
-	err := part.Stop()
+	var err error = nil
+	logger.Debugf("Try to stop part %v\n", part.Id())
+	if genericPipeline.canStop(part) {
+		if !part.IsStarted() {
+			logger.Infof("part %v is already stopped\n", part.Id())
+			return nil
+		}
+		err = part.Stop()
 
-	if err == nil {
-		if part.Connector() != nil {
-			downstreamParts := part.Connector().DownStreams()
-			for _, p := range downstreamParts {
-				err = genericPipeline.stopPart(p)
-				if err != nil {
-					return err
+		if err == nil {
+			if part.Connector() != nil {
+				downstreamParts := part.Connector().DownStreams()
+				for _, p := range downstreamParts {
+					err = genericPipeline.stopPart(p)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		} else {
+			logger.Errorf("Failed to stop part %v, err=%v\n", part.Id(), err)
+		}
+	}
+	return err
+}
+
+//part can't be stopped if one of its upstreams is still running
+func (genericPipeline *GenericPipeline) canStop(part common.Part) bool {
+	parents := genericPipeline.findUpstreams(part)
+	logger.Debugf("part %v's parents=%v\n", part.Id(), parents)
+	for _, parent := range parents {
+		if parent.IsStarted() {
+			logger.Debugf("Part %v can't stop, parent %v is still running\n", part.Id(), parent.Id())
+			return false
+		}
+	}
+	logger.Debugf("Part %v can stop\n", part.Id())
+	return true
+}
+
+func (genericPipeline *GenericPipeline) findUpstreams(part common.Part) []common.Part {
+	upstreams := []common.Part{}
+
+	//searching down each source nozzle
+	for _, source := range genericPipeline.sources {
+		searchResults := genericPipeline.searchUpStreamsWithStartingPoint(part, source)
+		if searchResults != nil && len(searchResults) > 0 {
+			upstreams = append(upstreams, searchResults...)
+		}
+	}
+	return upstreams
+}
+
+func (genericPipeline *GenericPipeline) searchUpStreamsWithStartingPoint(target_part common.Part, starting_part common.Part) []common.Part {
+	upstreams := []common.Part{}
+
+	if genericPipeline.isUpstreamTo(target_part, starting_part) {
+		//add it to upstreams
+		upstreams = append(upstreams, starting_part)
+	} else {
+		if starting_part.Connector() != nil {
+			downstreams := starting_part.Connector().DownStreams()
+			for _, downstream := range downstreams {
+				result := genericPipeline.searchUpStreamsWithStartingPoint(target_part, downstream)
+				if result != nil && len(result) > 0 {
+					upstreams = append(upstreams, result...)
 				}
 			}
 		}
 	}
-	return err
+	return upstreams
+}
+
+func (genericPipeline *GenericPipeline) isUpstreamTo(target_part common.Part, part common.Part) bool {
+	connector := part.Connector()
+	if connector != nil {
+		downstreams := connector.DownStreams()
+		if downstreams != nil {
+			for _, downstream := range downstreams {
+				if downstream.Id() == target_part.Id() {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 //Stop stops the pipeline
@@ -215,7 +302,6 @@ func NewGenericPipeline(t string, sources map[string]common.Nozzle, targets map[
 		sources:  sources,
 		targets:  targets,
 		isActive: false}
-
 	return pipeline
 }
 
@@ -225,6 +311,7 @@ func NewPipelineWithSettingConstructor(t string, sources map[string]common.Nozzl
 		targets:                 targets,
 		isActive:                false,
 		partSetting_constructor: partsSettingsConstructor}
+	logger.Debugf("Pipeline %s is initialized with a part setting constructor %v", t, partsSettingsConstructor)
 
 	return pipeline
 }

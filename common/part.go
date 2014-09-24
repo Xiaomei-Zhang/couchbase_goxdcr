@@ -45,7 +45,7 @@ type Part interface {
 	//Receive accepts data passed down from its upstream
 	Receive (data interface {}) error
 
-	//IsStarted returns true if the nozzle is started; otherwise returns false
+	//IsStarted returns true if the part is started; otherwise returns false
 	IsStarted () bool
 	
 }

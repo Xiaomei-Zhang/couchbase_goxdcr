@@ -28,7 +28,16 @@ type testOutgoingNozzle struct {
 }
 
 func newOutgoingNozzle(id string) *testOutgoingNozzle {
-	return &testOutgoingNozzle{part.NewAbstractPart(id), nil, nil, false, false, sync.Mutex{}, sync.WaitGroup{}}
+	nozzle := &testOutgoingNozzle{dataChan: nil, 
+	communicationChan: nil, 
+	isOpen: false, 
+	isStarted: false, 
+	stateLock: sync.Mutex{}, 
+	waitGrp: sync.WaitGroup{}}
+	funcw := nozzle.IsStarted
+	funce := (part.IsStarted_Callback_Func)(funcw)
+	nozzle.AbstractPart = part.NewAbstractPart(id, &funce)
+	return nozzle
 }
 
 func (p *testOutgoingNozzle) Start(settings map[string]interface{}) error {
