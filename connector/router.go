@@ -2,8 +2,9 @@ package connector
 
 import (
 	"errors"
-	"sync"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
+	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
+	"sync"
 )
 
 // Router routes data to downstream parts
@@ -14,31 +15,39 @@ var ErrorInvalidRoutingResult = errors.New("Invalid results from routing algorit
 // call back function implementing the routing alrogithm
 // @Param - data to be routed
 // @Return - a map of partId to data to the routed to that part
-type Routing_Callback_Func func(data interface{}) (map[string]interface{}, error)  
+type Routing_Callback_Func func(data interface{}) (map[string]interface{}, error)
 
 type Router struct {
-	downStreamParts map[string]common.Part  // partId -> Part 
-	routing_callback      *Routing_Callback_Func
-	
+	downStreamParts  map[string]common.Part // partId -> Part
+	routing_callback *Routing_Callback_Func
+
 	stateLock sync.RWMutex
+	logger    *log.CommonLogger
 }
 
-func NewRouter(downStreamParts map[string]common.Part, routing_callback *Routing_Callback_Func) *Router{	
+func NewRouter(downStreamParts map[string]common.Part,
+	routing_callback *Routing_Callback_Func,
+	logger_context *log.LoggerContext, logger_module string) *Router {
 	router := &Router{
-				downStreamParts: downStreamParts,
-				routing_callback: routing_callback,
-			   }
+		downStreamParts:  downStreamParts,
+		routing_callback: routing_callback,
+		logger:           log.NewLogger(logger_module, logger_context),
+	}
 	return router
+}
+
+func (router *Router) Logger() *log.CommonLogger {
+	return router.logger
 }
 
 func (router *Router) Forward(data interface{}) error {
 	router.stateLock.RLock()
 	defer router.stateLock.RUnlock()
-	
+
 	if len(router.downStreamParts) == 0 || *router.routing_callback == nil {
 		return ErrorInvalidRouterConfig
 	}
-	
+
 	routedData, err := (*router.routing_callback)(data)
 	if err == nil {
 		for partId, partData := range routedData {
@@ -59,23 +68,23 @@ func (router *Router) Forward(data interface{}) error {
 func (router *Router) DownStreams() map[string]common.Part {
 	router.stateLock.RLock()
 	defer router.stateLock.RUnlock()
-	
+
 	return router.downStreamParts
 }
 
 func (router *Router) AddDownStream(partId string, part common.Part) error {
 	router.stateLock.Lock()
 	defer router.stateLock.Unlock()
-	
+
 	router.downStreamParts[partId] = part
 	return nil
 }
 
 // set or replace routing call back function.
-// this may be allowed when router is still running 
+// this may be allowed when router is still running
 func (router *Router) SetRoutingCallBackFunc(routing_callback *Routing_Callback_Func) {
 	router.stateLock.Lock()
 	defer router.stateLock.Unlock()
-	
+
 	router.routing_callback = routing_callback
 }

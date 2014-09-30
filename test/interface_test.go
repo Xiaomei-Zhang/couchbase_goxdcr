@@ -3,6 +3,7 @@ package test
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	pipeline_manager "github.com/Xiaomei-Zhang/couchbase_goxdcr/pipeline_manager"
+	xdcrlog "github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 	"testing"
 	"time"	
 	"log"
@@ -13,7 +14,7 @@ func TestPipeline(t *testing.T) {
 	settings := make(map[string]interface{})
 	settings["start_int"] = 0
 	settings["increase_amount"] = 2
-	pipeline_manager.PipelineManager(&testPipelineFactory{})
+	pipeline_manager.PipelineManager(&testPipelineFactory{}, xdcrlog.DefaultLoggerContext)
 
 	ticker := time.NewTicker(600 * time.Millisecond)
 	tickCount := 0

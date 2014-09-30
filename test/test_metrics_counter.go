@@ -2,11 +2,11 @@ package test
 
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
-	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
+	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 	"sync"
 )
 
-var logger_metrics = log.NewLogger ("testMetricsCollector", log.LogLevelDebug)
+var logger_metrics = log.NewLogger ("testMetricsCollector", log.DefaultLoggerContext)
 
 type testMetricsCollector struct {
 	pipeline common.Pipeline

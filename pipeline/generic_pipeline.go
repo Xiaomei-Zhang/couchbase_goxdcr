@@ -3,11 +3,11 @@ package pipeline
 import (
 	"fmt"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
-	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 	"sync"
 )
 
-var logger = log.NewLogger("GenericPipeline", log.LogLevelInfo)
+//var logger = log.NewLogger("GenericPipeline", log.LogLevelInfo)
 
 //the function can construct part specific settings for the pipeline
 type PartsSettingsConstructor func(pipeline common.Pipeline, part common.Part, pipeline_settings map[string]interface{}) (map[string]interface{}, error)
@@ -41,6 +41,12 @@ type GenericPipeline struct {
 	stateLock sync.Mutex
 
 	partSetting_constructor PartsSettingsConstructor
+	
+	//the map that contains the reference of all parts used in the pipeline
+	//it only populated when GetAllParts called the first time
+	partsMap map[string]common.Part
+	
+	logger *log.CommonLogger
 }
 
 //Get the runtime context of this pipeline
@@ -68,7 +74,7 @@ func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map
 
 	partSettings := settings
 	if genericPipeline.partSetting_constructor != nil {
-		logger.Debugf("Calling part setting constructor\n")
+		genericPipeline.logger.Debugf("Calling part setting constructor\n")
 		partSettings, err = genericPipeline.partSetting_constructor(genericPipeline, part, settings)
 		if err != nil {
 			return err
@@ -79,7 +85,7 @@ func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map
 	if !part.IsStarted() {
 		err = part.Start(partSettings)
 	}else {
-		logger.Debugf("Part is already started\n")
+		genericPipeline.logger.Debugf("Part is already started\n")
 	}
 	
 	return err
@@ -90,7 +96,7 @@ func (genericPipeline *GenericPipeline) startPart(part common.Part, settings map
 //settings - a map of parameter to start the pipeline. it can contain initialization paramters
 //			 for each processing steps and for runtime context of the pipeline.
 func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) error {
-	logger.Debugf("Try to start the pipeline with settings = %s", fmt.Sprint(settings))
+	genericPipeline.logger.Debugf("Try to start the pipeline with settings = %s", fmt.Sprint(settings))
 	var err error
 
 	genericPipeline.stateLock.Lock()
@@ -104,49 +110,49 @@ func (genericPipeline *GenericPipeline) Start(settings map[string]interface{}) e
 		if err != nil {
 			return err
 		}
-		logger.Debugf("Incoming nozzle %s is started", source.Id())
+		genericPipeline.logger.Debugf("Incoming nozzle %s is started", source.Id())
 	}
-	logger.Info("All parts has been started")
+	genericPipeline.logger.Info("All parts has been started")
 
 	//open targets
 	for _, target := range genericPipeline.targets {
 		err = target.Open()
 		if err != nil {
-			logger.Errorf("Failed to open outgoing nozzle %s", target.Id())
+			genericPipeline.logger.Errorf("Failed to open outgoing nozzle %s", target.Id())
 			return err
 		}
 	}
-	logger.Debug("All outgoing nozzles have been opened")
+	genericPipeline.logger.Debug("All outgoing nozzles have been opened")
 
 	//open source
 	for _, source := range genericPipeline.sources {
 		err = source.Open()
 		if err != nil {
-			logger.Errorf("Failed to open incoming nozzle %s", source.Id())
+			genericPipeline.logger.Errorf("Failed to open incoming nozzle %s", source.Id())
 			return err
 		}
 	}
-	logger.Debug("All incoming nozzles have been opened")
+	genericPipeline.logger.Debug("All incoming nozzles have been opened")
 
-	logger.Debug("Try to start the runtime context")
+	genericPipeline.logger.Debug("Try to start the runtime context")
 	//start the runtime
 	err = genericPipeline.context.Start(settings)
-	logger.Debug("The runtime context is started")
+	genericPipeline.logger.Debug("The runtime context is started")
 
 	//set its state to be active
 	genericPipeline.isActive = true
 
-	logger.Infof("Pipeline %s is started", genericPipeline.Topic())
+	genericPipeline.logger.Infof("Pipeline %s is started", genericPipeline.Topic())
 
 	return err
 }
 
 func (genericPipeline *GenericPipeline) stopPart(part common.Part) error {
 	var err error = nil
-	logger.Debugf("Try to stop part %v\n", part.Id())
+	genericPipeline.logger.Debugf("Try to stop part %v\n", part.Id())
 	if genericPipeline.canStop(part) {
 		if !part.IsStarted() {
-			logger.Infof("part %v is already stopped\n", part.Id())
+			genericPipeline.logger.Infof("part %v is already stopped\n", part.Id())
 			return nil
 		}
 		err = part.Stop()
@@ -162,7 +168,7 @@ func (genericPipeline *GenericPipeline) stopPart(part common.Part) error {
 				}
 			}
 		} else {
-			logger.Errorf("Failed to stop part %v, err=%v\n", part.Id(), err)
+			genericPipeline.logger.Errorf("Failed to stop part %v, err=%v\n", part.Id(), err)
 		}
 	}
 	return err
@@ -171,14 +177,14 @@ func (genericPipeline *GenericPipeline) stopPart(part common.Part) error {
 //part can't be stopped if one of its upstreams is still running
 func (genericPipeline *GenericPipeline) canStop(part common.Part) bool {
 	parents := genericPipeline.findUpstreams(part)
-	logger.Debugf("part %v's parents=%v\n", part.Id(), parents)
+	genericPipeline.logger.Debugf("part %v's parents=%v\n", part.Id(), parents)
 	for _, parent := range parents {
 		if parent.IsStarted() {
-			logger.Debugf("Part %v can't stop, parent %v is still running\n", part.Id(), parent.Id())
+			genericPipeline.logger.Debugf("Part %v can't stop, parent %v is still running\n", part.Id(), parent.Id())
 			return false
 		}
 	}
-	logger.Debugf("Part %v can stop\n", part.Id())
+	genericPipeline.logger.Debugf("Part %v can stop\n", part.Id())
 	return true
 }
 
@@ -244,7 +250,7 @@ func (genericPipeline *GenericPipeline) Stop() error {
 			return err
 		}
 	}
-	logger.Debug("Incoming nozzles are closed, preparing to stop.")
+	genericPipeline.logger.Debug("Incoming nozzles are closed, preparing to stop.")
 
 	//stop the sources
 	//source nozzle would notify the stop intention to its downsteam steps
@@ -286,7 +292,7 @@ func (genericPipeline *GenericPipeline) waitToStop(finchan chan bool) {
 	for {
 		for _, target := range genericPipeline.targets {
 			if target.IsStarted() {
-				logger.Infof("outgoing nozzle %s is still running", target.Id())
+				genericPipeline.logger.Infof("outgoing nozzle %s is still running", target.Id())
 				done = false
 			}
 		}
@@ -297,35 +303,44 @@ func (genericPipeline *GenericPipeline) waitToStop(finchan chan bool) {
 	finchan <- true
 }
 
-func NewGenericPipeline(t string, sources map[string]common.Nozzle, targets map[string]common.Nozzle) *GenericPipeline {
+func NewGenericPipeline(t string, 
+						sources map[string]common.Nozzle, 
+						targets map[string]common.Nozzle) *GenericPipeline {
 	pipeline := &GenericPipeline{topic: t,
 		sources:  sources,
 		targets:  targets,
-		isActive: false}
+		isActive: false,
+		logger: log.NewLogger("GenericPipeline", nil)}
 	return pipeline
 }
 
-func NewPipelineWithSettingConstructor(t string, sources map[string]common.Nozzle, targets map[string]common.Nozzle, partsSettingsConstructor PartsSettingsConstructor) *GenericPipeline {
+func NewPipelineWithSettingConstructor(t string, 
+									   sources map[string]common.Nozzle, 
+									   targets map[string]common.Nozzle, 
+									   partsSettingsConstructor PartsSettingsConstructor,
+									   logger_context *log.LoggerContext) *GenericPipeline {
 	pipeline := &GenericPipeline{topic: t,
 		sources:                 sources,
 		targets:                 targets,
 		isActive:                false,
-		partSetting_constructor: partsSettingsConstructor}
-	logger.Debugf("Pipeline %s is initialized with a part setting constructor %v", t, partsSettingsConstructor)
+		partSetting_constructor: partsSettingsConstructor,
+		logger: log.NewLogger("GenericPipeline", logger_context)}
+	pipeline.logger.Debugf("Pipeline %s is initialized with a part setting constructor %v", t, partsSettingsConstructor)
 
 	return pipeline
 }
 
 func GetAllParts(p common.Pipeline) map[string]common.Part {
-	parts := make(map[string]common.Part)
+	if p.(*GenericPipeline).partsMap == nil {
+	p.(*GenericPipeline).partsMap = make(map[string]common.Part)
 	sources := p.Sources()
 	for key, source := range sources {
-		parts[key] = source
+		p.(*GenericPipeline).partsMap[key] = source
 
-		addDownStreams(source, parts)
+		addDownStreams(source, p.(*GenericPipeline).partsMap)
 	}
-
-	return parts
+}
+	return p.(*GenericPipeline).partsMap
 }
 
 func addDownStreams(p common.Part, partsMap map[string]common.Part) {

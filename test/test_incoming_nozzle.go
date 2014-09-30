@@ -5,12 +5,12 @@ import (
 	"fmt"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	part "github.com/Xiaomei-Zhang/couchbase_goxdcr/part"
-	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
+	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 	"reflect"
 	"sync"
 )
 
-var lt = log.NewLogger("testIncomingNozzle", log.LogLevelInfo)
+var lt = log.NewLogger("testIncomingNozzle", log.DefaultLoggerContext)
 
 type testIncomingNozzle struct {
 	part.AbstractPart
@@ -40,7 +40,7 @@ func newInComingNozzle(id string) *testIncomingNozzle {
 	waitGrp: sync.WaitGroup{}}
 	funcw := nozzle.IsStarted
 	funce := (part.IsStarted_Callback_Func)(funcw)
-	nozzle.AbstractPart = part.NewAbstractPart(id, &funce)
+	nozzle.AbstractPart = part.NewAbstractPartWithLogger(id, &funce, log.NewLogger("testIncomingNozzle", log.DefaultLoggerContext))
 	return nozzle
 }
 

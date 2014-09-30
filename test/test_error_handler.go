@@ -3,10 +3,10 @@ package test
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	pipeline "github.com/Xiaomei-Zhang/couchbase_goxdcr/pipeline"
-	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
+	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 )
 
-var logger = log.NewLogger ("testErrorHandler", log.LogLevelInfo)
+var logger = log.NewLogger ("testErrorHandler", log.DefaultLoggerContext)
 
 type testErrorHandler struct {
 	pipeline common.Pipeline

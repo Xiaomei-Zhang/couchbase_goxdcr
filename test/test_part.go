@@ -4,12 +4,12 @@ import (
 	"errors"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	part "github.com/Xiaomei-Zhang/couchbase_goxdcr/part"
-	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
+	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 	"reflect"
 	"sync"
 )
 
-var logger_part = log.NewLogger ("testPart", log.LogLevelInfo)
+var logger_part = log.NewLogger ("testPart", log.DefaultLoggerContext)
 
 //constants
 var cmdStop = 0
@@ -41,7 +41,7 @@ func newTestPart(id string) *testPart {
 	waitGrp: sync.WaitGroup{}}
 	funcw := p.IsStarted
 	funce := (part.IsStarted_Callback_Func)(funcw)
-	p.AbstractPart = part.NewAbstractPart(id, &funce)
+	p.AbstractPart = part.NewAbstractPartWithLogger(id, &funce, log.NewLogger("testPart", log.DefaultLoggerContext))
 	return p
 }
 

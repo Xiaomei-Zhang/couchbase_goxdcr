@@ -2,12 +2,12 @@ package pipeline_ctx
 
 import (
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
-	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
+	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 	"errors"
 	"sync"
 )
 
-var logger = log.NewLogger ("PipelineRuntimeCtx", log.LogLevelInfo)
+//var logger = log.NewLogger ("PipelineRuntimeCtx", log.LogLevelInfo)
 
 type PipelineRuntimeCtx struct {
 	//registered runtime pipeline service
@@ -20,15 +20,22 @@ type PipelineRuntimeCtx struct {
 	stateLock sync.Mutex
 
 	isRunning bool
+	logger	*log.CommonLogger
+	
 }
 
-func New(p common.Pipeline) (*PipelineRuntimeCtx, error) {
+func NewWithCtx(p common.Pipeline, logger_context *log.LoggerContext) (*PipelineRuntimeCtx, error) {
 	ctx := &PipelineRuntimeCtx{
 		runtime_svcs: make(map[string]common.PipelineService),
 		pipeline:     p,
-		isRunning:    false}
+		isRunning:    false,
+		logger: log.NewLogger("PipelineRuntimeCtx", logger_context)}
 
 	return ctx, nil
+}
+
+func New (p common.Pipeline) (*PipelineRuntimeCtx, error) {
+	return NewWithCtx (p, log.DefaultLoggerContext)
 }
 
 func (ctx *PipelineRuntimeCtx) Start(params map[string]interface{}) error {
@@ -40,9 +47,9 @@ func (ctx *PipelineRuntimeCtx) Start(params map[string]interface{}) error {
 	for name, svc := range ctx.runtime_svcs {
 		err = svc.Start(params)
 		if err != nil {
-			logger.Errorf("Failed to start service %s", name)
+			ctx.logger.Errorf("Failed to start service %s", name)
 		}
-		logger.Debugf("Service %s has been started", name)
+		ctx.logger.Debugf("Service %s has been started", name)
 	}
 
 	if err == nil {

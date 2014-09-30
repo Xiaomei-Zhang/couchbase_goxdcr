@@ -9,9 +9,9 @@ go install
 cd ..
 echo "Done"
 }
-build_util () {
-echo "Building utils..."
-cd util
+build_log () {
+echo "Building log..."
+cd log
 go clean
 go install
 cd ..
@@ -79,9 +79,9 @@ cd ..
 echo "Done"
 }
 
-clean_util(){
-echo "Clean utils..."
-cd util
+clean_log(){
+echo "Clean log..."
+cd log
 go clean
 cd ..
 echo "Done"
@@ -138,7 +138,7 @@ echo "Done"
 if [ -z "$1" ]
 then
 build_common
-build_util
+build_log
 build_connector
 build_part
 build_pipeline
@@ -173,7 +173,7 @@ elif [ $1 == "clean" ]
 then
 echo "Cleaning..."
 clean_common
-clean_util
+clean_log
 clean_connector
 clean_part
 clean_pipeline

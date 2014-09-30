@@ -4,22 +4,27 @@ import (
 	//	"errors"
 	"sync"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
-	log "github.com/Xiaomei-Zhang/couchbase_goxdcr/util"
+	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 )
 
-var logger = log.NewLogger ("SimpleConnector", log.LogLevelInfo)
 
 //SimpleConnector connects one source to one downstream
 type SimpleConnector struct {
 	downStreamPart common.Part
 	stateLock sync.RWMutex
+	logger	*log.CommonLogger
+}
+
+func NewSimpleConnector (downstreamPart common.Part, logger_context *log.LoggerContext) *SimpleConnector {
+	logger := log.NewLogger("SimpleConnector", logger_context)
+	return &SimpleConnector{downstreamPart, sync.RWMutex{}, logger}
 }
 
 func (con *SimpleConnector) Forward(data interface{}) error {
 	con.stateLock.RLock()
 	defer con.stateLock.RUnlock()
 	
-	logger.Debugf("Try to forward to downstream part %s", con.downStreamPart.Id())
+	con.logger.Debugf("Try to forward to downstream part %s", con.downStreamPart.Id())
 	return con.downStreamPart.Receive(data)
 }
 
