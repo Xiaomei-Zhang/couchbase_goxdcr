@@ -135,6 +135,13 @@ cd ..
 echo "Done"
 }
 
+run_test() {
+echo "Running test..."
+cd test
+go test
+cd ..
+echo "Done"
+}
 if [ -z "$1" ]
 then
 build_common
@@ -145,6 +152,7 @@ build_pipeline
 build_pipeline_ctx
 build_pipeline_manager
 build_test
+run_test
 elif [ $1 == "common" ]
 then
 build_common
