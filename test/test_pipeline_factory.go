@@ -5,7 +5,6 @@ import (
 	connector "github.com/Xiaomei-Zhang/couchbase_goxdcr/connector"
 	pipeline "github.com/Xiaomei-Zhang/couchbase_goxdcr/pipeline"
 	pipeline_ctx "github.com/Xiaomei-Zhang/couchbase_goxdcr/pipeline_ctx"
-	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 )
 
 type testPipelineFactory struct {
@@ -42,7 +41,7 @@ func (f *testPipelineFactory) NewPipeline(topic string) (common.Pipeline, error)
 
 	pipeline := pipeline.NewGenericPipeline(topic, sources, targets)
 
-	ctx, err := pipeline_ctx.NewWithCtx(pipeline, log.DefaultLoggerContext)
+	ctx, err := pipeline_ctx.New(pipeline)
 	metricsCollector := NewMetricsCollector()
 	
 	outNozzle1.RegisterPartEventListener (common.DataSent, metricsCollector)

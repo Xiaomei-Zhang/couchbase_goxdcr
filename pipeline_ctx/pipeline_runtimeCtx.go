@@ -1,13 +1,13 @@
 package pipeline_ctx
 
 import (
+	"errors"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
-	"errors"
 	"sync"
 )
 
-//var logger = log.NewLogger ("PipelineRuntimeCtx", log.LogLevelInfo)
+type ServiceSettingsConstructor func(pipeline common.Pipeline, service common.PipelineService, pipeline_settings map[string]interface{}) (map[string]interface{}, error)
 
 type PipelineRuntimeCtx struct {
 	//registered runtime pipeline service
@@ -19,23 +19,24 @@ type PipelineRuntimeCtx struct {
 	//the lock to serialize the request to start\stop the pipeline
 	stateLock sync.Mutex
 
-	isRunning bool
-	logger	*log.CommonLogger
-	
+	isRunning                    bool
+	logger                       *log.CommonLogger
+	service_settings_constructor ServiceSettingsConstructor
 }
 
-func NewWithCtx(p common.Pipeline, logger_context *log.LoggerContext) (*PipelineRuntimeCtx, error) {
+func NewWithSettingConstructor(p common.Pipeline, service_settings_constructor ServiceSettingsConstructor, logger_context *log.LoggerContext) (*PipelineRuntimeCtx, error) {
 	ctx := &PipelineRuntimeCtx{
 		runtime_svcs: make(map[string]common.PipelineService),
 		pipeline:     p,
 		isRunning:    false,
-		logger: log.NewLogger("PipelineRuntimeCtx", logger_context)}
+		logger:       log.NewLogger("PipelineRuntimeCtx", logger_context),
+		service_settings_constructor: service_settings_constructor}
 
 	return ctx, nil
 }
 
-func New (p common.Pipeline) (*PipelineRuntimeCtx, error) {
-	return NewWithCtx (p, log.DefaultLoggerContext)
+func New(p common.Pipeline) (*PipelineRuntimeCtx, error) {
+	return NewWithSettingConstructor(p, nil, log.DefaultLoggerContext)
 }
 
 func (ctx *PipelineRuntimeCtx) Start(params map[string]interface{}) error {
@@ -45,7 +46,14 @@ func (ctx *PipelineRuntimeCtx) Start(params map[string]interface{}) error {
 	var err error = nil
 	//start all registered services
 	for name, svc := range ctx.runtime_svcs {
-		err = svc.Start(params)
+		settings := params
+		if ctx.service_settings_constructor != nil {
+			settings, err = ctx.service_settings_constructor (ctx.pipeline, svc, params)
+			if err != nil {
+				return err
+			}
+		}
+		err = svc.Start(settings)
 		if err != nil {
 			ctx.logger.Errorf("Failed to start service %s", name)
 		}

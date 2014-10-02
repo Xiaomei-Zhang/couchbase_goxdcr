@@ -107,9 +107,9 @@ func (pipelineMgr *pipelineManager) stopPipeline(topic string) error {
 	pipelineMgr.logger.Infof("Try to stop the pipeline %s", topic)
 	var err error
 	if f, ok := pipelineMgr.live_pipelines[topic]; ok {
+		pipelineMgr.removePipelineFromMap(f)
 		f.Stop()
 		pipelineMgr.logger.Debug("Pipeline is stopped")
-		pipelineMgr.removePipelineFromMap(f)
 	} else {
 		//The named pipeline is not active
 		pipelineMgr.logger.Debug("The pipeline asked to be stopped is not running.")
