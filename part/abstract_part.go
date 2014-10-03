@@ -19,7 +19,6 @@ type AbstractPart struct {
 	isStarted_callback *IsStarted_Callback_Func
 
 	event_listeners map[common.PartEventType][]common.PartEventListener
-	listenerLock    sync.Mutex
 
 	stateLock sync.RWMutex
 	logger    *log.CommonLogger
@@ -43,8 +42,6 @@ func NewAbstractPart(id string,
 }
 
 func (p *AbstractPart) RaiseEvent(eventType common.PartEventType, data interface{}, part common.Part, derivedData []interface{}, otherInfos map[string]interface{}) {
-	p.listenerLock.Lock()
-	defer p.listenerLock.Unlock()
 
 	p.logger.Debugf("Raise event %d for part %s\n", eventType, part.Id())
 	listenerList := p.event_listeners[eventType]
@@ -84,8 +81,6 @@ func (p *AbstractPart) Id() string {
 }
 
 func (p *AbstractPart) RegisterPartEventListener(eventType common.PartEventType, listener common.PartEventListener) error {
-	p.listenerLock.Lock()
-	defer p.listenerLock.Unlock()
 
 	listenerList := p.event_listeners[eventType]
 	if listenerList == nil {
@@ -99,8 +94,6 @@ func (p *AbstractPart) RegisterPartEventListener(eventType common.PartEventType,
 }
 
 func (p *AbstractPart) UnRegisterPartEventListener(eventType common.PartEventType, listener common.PartEventListener) error {
-	p.listenerLock.Lock()
-	defer p.listenerLock.Unlock()
 
 	listenerList := p.event_listeners[eventType]
 	var index int = -1

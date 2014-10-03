@@ -4,7 +4,6 @@ import (
 	"errors"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
 	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
-	"sync"
 )
 
 type ServiceSettingsConstructor func(pipeline common.Pipeline, service common.PipelineService, pipeline_settings map[string]interface{}) (map[string]interface{}, error)
@@ -16,8 +15,6 @@ type PipelineRuntimeCtx struct {
 	//pipeline
 	pipeline common.Pipeline
 
-	//the lock to serialize the request to start\stop the pipeline
-	stateLock sync.Mutex
 
 	isRunning                    bool
 	logger                       *log.CommonLogger
@@ -40,8 +37,6 @@ func New(p common.Pipeline) (*PipelineRuntimeCtx, error) {
 }
 
 func (ctx *PipelineRuntimeCtx) Start(params map[string]interface{}) error {
-	ctx.stateLock.Lock()
-	defer ctx.stateLock.Unlock()
 
 	var err error = nil
 	//start all registered services
@@ -74,8 +69,6 @@ func (ctx *PipelineRuntimeCtx) Start(params map[string]interface{}) error {
 }
 
 func (ctx *PipelineRuntimeCtx) Stop() error {
-	ctx.stateLock.Lock()
-	defer ctx.stateLock.Unlock()
 
 	var err error = nil
 	//stop all registered services
@@ -103,8 +96,6 @@ func (ctx *PipelineRuntimeCtx) Service(svc_name string) common.PipelineService {
 }
 
 func (ctx *PipelineRuntimeCtx) RegisterService(svc_name string, svc common.PipelineService) error {
-	ctx.stateLock.Lock()
-	defer ctx.stateLock.Unlock()
 
 	if ctx.isRunning {
 		return errors.New("Can't register service when PipelineRuntimeContext is already running")
@@ -117,9 +108,6 @@ func (ctx *PipelineRuntimeCtx) RegisterService(svc_name string, svc common.Pipel
 }
 
 func (ctx *PipelineRuntimeCtx) UnregisterService(srv_name string) error {
-	ctx.stateLock.Lock()
-	defer ctx.stateLock.Unlock()
-
 	var err error
 	svc := ctx.runtime_svcs[srv_name]
 
