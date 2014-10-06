@@ -53,48 +53,48 @@ func NewLogger(module string, logger_context *LoggerContext) *CommonLogger {
 	return &CommonLogger{l, context}
 }
 
-func (l *CommonLogger) logMsgf(level LogLevel, format string, v ...interface{}) {
+func (l *CommonLogger) logMsgf(level LogLevel, prefix string, format string, v ...interface{}) {
 	if l.context.Log_level >= level {
-		l.logger.Printf(format, v...)
+		l.logger.Printf(prefix + format, v...)
 	}
 }
 
-func (l *CommonLogger) logMsg(level LogLevel, msg string) {
+func (l *CommonLogger) logMsg(level LogLevel, prefix string, msg string) {
 	if l.context.Log_level >= level {
-		l.logger.Println(msg)
+		l.logger.Println(prefix + msg)
 	}
 }
 
 func (l *CommonLogger) Infof(format string, v ...interface{}) {
-	l.logMsgf(LogLevelInfo, "[INFO] "+format, v...)
+	l.logMsgf(LogLevelInfo, "[INFO] ", format, v...)
 }
 
 func (l *CommonLogger) Debugf(format string, v ...interface{}) {
-	l.logMsgf(LogLevelDebug, "[DEBUG] "+format, v...)
+	l.logMsgf(LogLevelDebug, "[DEBUG] ", format, v...)
 }
 
 func (l *CommonLogger) Tracef(format string, v ...interface{}) {
-	l.logMsgf(LogLevelTrace, "[TRACE] "+format, v...)
+	l.logMsgf(LogLevelTrace, "[TRACE] ", format, v...)
 }
 
 func (l *CommonLogger) Errorf(format string, v ...interface{}) {
-	l.logMsgf(LogLevelError, "[ERROR] "+format, v...)
+	l.logMsgf(LogLevelError, "[ERROR] ", format, v...)
 }
 
 func (l *CommonLogger) Info(msg string) {
-	l.logMsg(LogLevelInfo, "[INFO] "+msg)
+	l.logMsg(LogLevelInfo, "[INFO] ", msg)
 }
 
 func (l *CommonLogger) Debug(msg string) {
-	l.logMsg(LogLevelDebug, "[DEBUG] "+msg)
+	l.logMsg(LogLevelDebug, "[DEBUG] ", msg)
 }
 
 func (l *CommonLogger) Trace(msg string) {
-	l.logMsgf(LogLevelTrace, "[TRACE] "+msg)
+	l.logMsgf(LogLevelTrace, "[TRACE] ", msg)
 }
 
 func (l *CommonLogger) Error(msg string) {
-	l.logMsg(LogLevelError, "[ERROR] "+msg)
+	l.logMsg(LogLevelError, "[ERROR] ", msg)
 }
 
 func (l *CommonLogger) LoggerContext() *LoggerContext {
