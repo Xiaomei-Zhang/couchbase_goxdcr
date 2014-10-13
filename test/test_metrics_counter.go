@@ -36,7 +36,7 @@ func (h *testMetricsCollector) hookup() {
 	h.counter = 0
 	targets := h.pipeline.Targets()
 	for _, target := range targets {
-		target.RegisterPartEventListener(common.DataSent, h)
+		target.RegisterComponentEventListener(common.DataSent, h)
 	}
 }
 
@@ -50,11 +50,11 @@ func (h *testMetricsCollector) Stop() error {
 func (h *testMetricsCollector) cleanup() {
 	targets := h.pipeline.Targets()
 	for _, target := range targets {
-		target.UnRegisterPartEventListener(common.DataSent, h)
+		target.UnRegisterComponentEventListener(common.DataSent, h)
 	}
 }
 
-func (h *testMetricsCollector) OnEvent(eventType common.PartEventType, item interface{}, part common.Part, derivedItems []interface{}, otherInfos map[string]interface{}) {
+func (h *testMetricsCollector) OnEvent(eventType common.ComponentEventType, item interface{}, component common.Component, derivedItems []interface{}, otherInfos map[string]interface{}) {
 	h.counterLock.Lock()
 	defer h.counterLock.Unlock()
 	

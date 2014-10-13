@@ -32,7 +32,7 @@ func (h *testErrorHandler) Start(settings map[string]interface{}) error {
 func (h *testErrorHandler) hookup() {
 	parts := pipeline.GetAllParts(h.pipeline)
 	for _, part := range parts {
-		part.RegisterPartEventListener(common.ErrorEncountered, h)
+		part.RegisterComponentEventListener(common.ErrorEncountered, h)
 	}
 }
 
@@ -46,12 +46,12 @@ func (h *testErrorHandler) Stop() error {
 func (h *testErrorHandler) cleanup() {
 	parts := pipeline.GetAllParts(h.pipeline)
 	for _, part := range parts {
-		part.UnRegisterPartEventListener(common.ErrorEncountered, h)
+		part.UnRegisterComponentEventListener(common.ErrorEncountered, h)
 	}
 }
 
-func (h *testErrorHandler) OnEvent(eventType common.PartEventType, item interface{}, part common.Part, derivedItems []interface{}, otherInfos map[string]interface{}) {
+func (h *testErrorHandler) OnEvent(eventType common.ComponentEventType, item interface{}, component common.Component, derivedItems []interface{}, otherInfos map[string]interface{}) {
 	if eventType == common.ErrorEncountered {
-		logger.Errorf("Error encountered when processing %b at part %s", item, part.Id())
+		logger.Errorf("Error encountered when processing %b at component %s", item, component.Id())
 	}
 }

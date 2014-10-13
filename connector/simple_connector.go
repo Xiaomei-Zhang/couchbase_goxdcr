@@ -4,27 +4,28 @@ import (
 	//	"errors"
 	"sync"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
+	component "github.com/Xiaomei-Zhang/couchbase_goxdcr/component"
 	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 )
 
 
 //SimpleConnector connects one source to one downstream
 type SimpleConnector struct {
+	component.AbstractComponent
 	downStreamPart common.Part
 	stateLock sync.RWMutex
-	logger	*log.CommonLogger
 }
 
-func NewSimpleConnector (downstreamPart common.Part, logger_context *log.LoggerContext) *SimpleConnector {
+func NewSimpleConnector (id string, downstreamPart common.Part, logger_context *log.LoggerContext) *SimpleConnector {
 	logger := log.NewLogger("SimpleConnector", logger_context)
-	return &SimpleConnector{downstreamPart, sync.RWMutex{}, logger}
+	return &SimpleConnector{component.NewAbstractComponentWithLogger(id, logger), downstreamPart, sync.RWMutex{}}
 }
 
 func (con *SimpleConnector) Forward(data interface{}) error {
 	con.stateLock.RLock()
 	defer con.stateLock.RUnlock()
 	
-	con.logger.Debugf("Try to forward to downstream part %s", con.downStreamPart.Id())
+	con.Logger().Debugf("Try to forward to downstream part %s", con.downStreamPart.Id())
 	return con.downStreamPart.Receive(data)
 }
 

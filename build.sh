@@ -17,6 +17,14 @@ go install
 cd ..
 echo "Done"
 }
+build_component(){
+echo "Building component..."
+cd component
+go clean
+go install
+cd ..
+echo "Done"
+}
 build_connector(){
 echo "Building connector..."
 cd connector
@@ -87,6 +95,14 @@ cd ..
 echo "Done"
 }
 
+clean_component(){
+echo "Clean component..."
+cd component
+go clean
+cd ..
+echo "Done"
+}
+
 clean_connector(){
 echo "Clean connector..."
 cd connector
@@ -146,6 +162,7 @@ if [ -z "$1" ]
 then
 build_common
 build_log
+build_component
 build_connector
 build_part
 build_pipeline
@@ -159,6 +176,9 @@ build_common
 elif [ $1 == "utils" ]
 then
 build_utils
+elif [ $1 == "component" ]
+then
+build_component
 elif [ $1 == "connector" ]
 then
 build_connector
@@ -182,6 +202,7 @@ then
 echo "Cleaning..."
 clean_common
 clean_log
+clean_component
 clean_connector
 clean_part
 clean_pipeline

@@ -3,6 +3,7 @@ package connector
 import (
 	"errors"
 	common "github.com/Xiaomei-Zhang/couchbase_goxdcr/common"
+	component "github.com/Xiaomei-Zhang/couchbase_goxdcr/component"
 	"github.com/Xiaomei-Zhang/couchbase_goxdcr/log"
 	"sync"
 )
@@ -18,26 +19,22 @@ var ErrorInvalidRoutingResult = errors.New("Invalid results from routing algorit
 type Routing_Callback_Func func(data interface{}) (map[string]interface{}, error)
 
 type Router struct {
+	component.AbstractComponent
 	downStreamParts  map[string]common.Part // partId -> Part
 	routing_callback *Routing_Callback_Func
 
 	stateLock sync.RWMutex
-	logger    *log.CommonLogger
 }
 
-func NewRouter(downStreamParts map[string]common.Part,
+func NewRouter(id string, downStreamParts map[string]common.Part,
 	routing_callback *Routing_Callback_Func,
 	logger_context *log.LoggerContext, logger_module string) *Router {
 	router := &Router{
+		AbstractComponent: component.NewAbstractComponentWithLogger(id, log.NewLogger(logger_module, logger_context)),
 		downStreamParts:  downStreamParts,
 		routing_callback: routing_callback,
-		logger:           log.NewLogger(logger_module, logger_context),
 	}
 	return router
-}
-
-func (router *Router) Logger() *log.CommonLogger {
-	return router.logger
 }
 
 func (router *Router) Forward(data interface{}) error {

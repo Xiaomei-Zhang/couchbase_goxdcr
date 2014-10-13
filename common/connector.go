@@ -6,6 +6,8 @@ import (
 
 //Connector abstracts the logic which moves data from one processing steps to another
 type Connector interface {
+	Component
+	
 	Forward(data interface{}) error
 	
 	//get this node's down stream nodes
